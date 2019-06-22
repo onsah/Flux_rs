@@ -1,0 +1,90 @@
+use super::Result;
+use super::{ParserError, Token, TokenType};
+
+const LOOKAHEAD_SIZE: usize = 3;
+
+pub struct LookAhead<I>
+where
+    I: Iterator<Item = Token>,
+{
+    token_buffer: I,
+    lookahead: [Token; LOOKAHEAD_SIZE],
+    lookahead_index: usize,
+}
+
+impl<I> LookAhead<I>
+where
+    I: Iterator<Item = Token>,
+{
+    pub fn new(mut buffer: I) -> Self {
+        let mut lookahead = [Token::default(), Token::default(), Token::default()];
+        lookahead[0] = buffer.next().unwrap();
+        LookAhead {
+            token_buffer: buffer,
+            lookahead,
+            lookahead_index: 0,
+        }
+    }
+
+    pub(super) fn advance(&mut self) -> Result<Token> {
+        match self.token_buffer.next() {
+            Some(token) => {
+                self.lookahead_insert(token.clone());
+                self.current()
+            }
+            None => Err(ParserError::ExpectedToken),
+        }
+    }
+
+    // Can be used both for matching and for asserting tokens
+    pub(super) fn match_token(&mut self, typ: TokenType) -> Result<Token> {
+        let current = self.current()?.clone();
+        let next_type = current.get_type();
+        if next_type == typ {
+            self.advance()?;
+            Ok(current)
+        } else {
+            Err(ParserError::NotMatched { typ })
+        }
+    }
+
+    fn lookahead_insert(&mut self, token: Token) {
+        let next_index = (self.lookahead_index + 1) % LOOKAHEAD_SIZE;
+        self.lookahead[next_index] = token;
+        self.lookahead_index = next_index;
+    }
+
+    /* pub(super) fn prev(&self) -> Result<Token> {
+        let i = match self.lookahead_index {
+            0 => LOOKAHEAD_SIZE - 1,
+            i => i - 1,
+        };
+        let token = self.lookahead[i].clone();
+        if token.is_invalid() {
+            Err(ParserError::UnexpectedToken { token })
+        } else {
+            Ok(token)
+        }
+    } */
+
+    pub(super) fn current(&self) -> Result<Token> {
+        let i = self.lookahead_index;
+        let token = self.lookahead[i].clone();
+        if token.is_invalid() {
+            Err(ParserError::UnexpectedToken { token })
+        } else {
+            Ok(token)
+        }
+    }
+
+    pub(super) fn peek_first(&self) -> Result<Token> {
+        let i = (self.lookahead_index + 1) % LOOKAHEAD_SIZE;
+        let token = self.lookahead[i].clone();
+        println!("peek: {:?}", token);
+        if token.is_invalid() {
+            Err(ParserError::UnexpectedToken { token })
+        } else {
+            Ok(token)
+        }
+    }
+}
