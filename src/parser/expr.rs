@@ -26,7 +26,7 @@ pub enum Expr {
     TableInit {
         keys: Option<Vec<Expr>>,
         values: Vec<Expr>,
-    }
+    },
 }
 
 #[derive(Debug, Clone, PartialEq)]

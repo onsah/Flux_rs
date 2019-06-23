@@ -1,5 +1,5 @@
-use super::scanner::LexError;
 use super::parser::ParserError;
+use super::scanner::LexError;
 
 pub type FluxResult<T> = std::result::Result<T, FluxError>;
 

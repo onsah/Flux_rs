@@ -6,6 +6,6 @@ pub enum ParserError {
     UnexpectedToken { token: Token },
     NotMatched { typ: TokenType },
     // mixing array and table initialization
-    // Ex: let t = { 3, foo = 5 } 
+    // Ex: let t = { 3, foo = 5 }
     InitError,
 }

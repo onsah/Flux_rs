@@ -1,4 +1,4 @@
-use crate::compiler::{Instruction, BinaryInstr, UnaryInstr};
+use crate::compiler::{BinaryInstr, Instruction, UnaryInstr};
 use crate::vm::Value;
 
 #[derive(Debug, Clone)]
@@ -7,8 +7,6 @@ pub enum RuntimeError {
     EmptyFrame,
     UnsupportedInstruction(Instruction),
     EmptyStack,
-    UnsupportedBinary {
-        value: Value,
-        op: BinaryInstr,
-    }
+    UndefinedVariable { name: String },
+    UnsupportedBinary { value: Value, op: BinaryInstr },
 }

@@ -1,13 +1,15 @@
 mod error;
 mod expr;
 mod lookahead;
+mod statement;
 
 pub use super::scanner::{Token, TokenType};
-pub use error::ParserError;
+use crate::error::FluxResult;
 use crate::scanner::Scanner;
-use crate::error::{FluxResult};
-pub use expr::{Expr, BinaryOp, UnaryOp, Literal};
+pub use error::ParserError;
+pub use expr::{BinaryOp, Expr, Literal, UnaryOp};
 use lookahead::LookAhead;
+pub use statement::Statement;
 use std::ops::{Deref, DerefMut};
 
 type Result<'a, T> = std::result::Result<T, ParserError>;
@@ -24,9 +26,7 @@ impl Parser<std::vec::IntoIter<Token>> {
         let mut scanner = Scanner::new(source);
         scanner.scan()?;
         let lookahead = LookAhead::new(scanner.extract_tokens().into_iter());
-        Ok(Parser {
-            lookahead,
-        })
+        Ok(Parser { lookahead })
     }
 }
 
@@ -34,8 +34,91 @@ impl<I> Parser<I>
 where
     I: Iterator<Item = Token>,
 {
-    pub fn parse(&mut self) -> Result<Expr> {
-        self.expression()
+    pub fn parse(&mut self) -> Result<Vec<Statement>> {
+        let mut statements = Vec::new();
+        while self.current()?.get_type() != TokenType::Eof {
+            statements.push(self.statement()?);
+        }
+        Ok(statements)
+    }
+
+    pub fn statement(&mut self) -> Result<Statement> {
+        if let Ok(_) = self.match_token(TokenType::Let) {
+            self.let_stmt()
+        } else if let Ok(_) = self.match_token(TokenType::If) {
+            self.if_stmt()
+        } else if let Ok(_) = self.match_token(TokenType::Do) {
+            let stmt = self.block_stmt().map(|v| Statement::Block(v))?;
+            self.match_token(TokenType::End)?;
+            Ok(stmt)
+        } else if let Ok(_) = self.match_token(TokenType::While) {
+            self.while_stmt()
+        } else {
+            self.expr_stmt()
+        }
+    }
+
+    fn let_stmt(&mut self) -> Result<Statement> {
+        let token = self.match_token(TokenType::Identifier)?;
+        let name = token.text();
+        self.match_token(TokenType::Equal)?;
+        let value = self.expression()?;
+        Ok(Statement::Let {
+            name: name.to_string(),
+            value,
+        })
+    }
+
+    fn if_stmt(&mut self) -> Result<Statement> {
+        let condition = self.expression()?;
+        self.match_token(TokenType::Then)?;
+        let then_block = Statement::Block(self.block_stmt()?);
+        if let Ok(_) = self.match_token(TokenType::Else) {
+            let else_block = if let Ok(_) = self.match_token(TokenType::If) {
+                self.if_stmt()?
+            } else {
+                let block = self.block_stmt()?;
+                self.match_token(TokenType::End)?;
+                Statement::Block(block)
+            };
+            Ok(Statement::If {
+                condition,
+                then_block: Box::new(then_block),
+                else_block: Some(Box::new(else_block)),
+            })
+        } else {
+            self.match_token(TokenType::End)?;
+            Ok(Statement::If {
+                condition,
+                then_block: Box::new(then_block),
+                else_block: None,
+            })
+        }
+    }
+
+    fn block_stmt(&mut self) -> Result<Vec<Statement>> {
+        let mut stmts = Vec::new();
+        while self.current()?.get_type() != TokenType::End
+            && self.current()?.get_type() != TokenType::Else
+        {
+            let stmt = self.statement()?;
+            stmts.push(stmt)
+        }
+        Ok(stmts)
+    }
+
+    fn while_stmt(&mut self) -> Result<Statement> {
+        let condition = self.expression()?;
+        self.match_token(TokenType::Then)?;
+        let then_block = self.statement()?;
+        Ok(Statement::While {
+            condition,
+            then_block: Box::new(then_block),
+        })
+    }
+
+    fn expr_stmt(&mut self) -> Result<Statement> {
+        Ok(Statement::Expr(self.expression()?))
     }
 
     pub(self) fn expression(&mut self) -> Result<Expr> {
@@ -61,7 +144,8 @@ where
 
     fn comparasion(&mut self) -> Result<Expr> {
         let mut left = self.addition()?;
-        while let Ok(token) = self.match_token(TokenType::Less)
+        while let Ok(token) = self
+            .match_token(TokenType::Less)
             .or_else(|_| self.match_token(TokenType::Greater))
             .or_else(|_| self.match_token(TokenType::LessEqual))
             .or_else(|_| self.match_token(TokenType::GreaterEqual))
@@ -73,7 +157,7 @@ where
             left = Expr::Binary {
                 left: Box::new(left),
                 op: binop,
-                right: Box::new(right)
+                right: Box::new(right),
             }
         }
         Ok(left)
@@ -81,7 +165,10 @@ where
 
     fn addition(&mut self) -> Result<Expr> {
         let mut left = self.multiplication()?;
-        while let Ok(token) = self.match_token(TokenType::Plus).or_else(|_| self.match_token(TokenType::Minus)) {
+        while let Ok(token) = self
+            .match_token(TokenType::Plus)
+            .or_else(|_| self.match_token(TokenType::Minus))
+        {
             let binop: BinaryOp = token.get_type().into();
             let right = self.multiplication()?;
             left = Expr::Binary {
@@ -95,7 +182,10 @@ where
 
     fn multiplication(&mut self) -> Result<Expr> {
         let mut left = self.unary()?;
-        while let Ok(token) = self.match_token(TokenType::Star).or_else(|_| self.match_token(TokenType::Slash)) {
+        while let Ok(token) = self
+            .match_token(TokenType::Star)
+            .or_else(|_| self.match_token(TokenType::Slash))
+        {
             let binop: BinaryOp = token.get_type().into();
             let right = self.unary()?;
             left = Expr::Binary {
@@ -108,15 +198,16 @@ where
     }
 
     fn unary(&mut self) -> Result<Expr> {
-        if let Ok(token) = self.match_token(TokenType::Plus)
+        if let Ok(token) = self
+            .match_token(TokenType::Plus)
             .or_else(|_| self.match_token(TokenType::Minus))
-            .or_else(|_| self.match_token(TokenType::Bang))  
+            .or_else(|_| self.match_token(TokenType::Bang))
         {
             let unop: UnaryOp = token.get_type().into();
             let expr = self.unary()?;
             Ok(Expr::Unary {
                 op: unop,
-                expr: Box::new(expr)
+                expr: Box::new(expr),
             })
         } else {
             self.access()
@@ -126,8 +217,9 @@ where
     // TODO: test this
     fn access(&mut self) -> Result<Expr> {
         let mut expr = self.primary()?;
-        while let Ok(token) = self.match_token(TokenType::Dot)
-            .or_else(|_| self.match_token(TokenType::LeftBracket)) 
+        while let Ok(token) = self
+            .match_token(TokenType::Dot)
+            .or_else(|_| self.match_token(TokenType::LeftBracket))
         {
             match token.get_type() {
                 TokenType::Dot => {
@@ -137,7 +229,7 @@ where
                         table: Box::new(expr),
                         field: Box::new(Expr::Literal(Literal::Str(name))),
                     };
-                },
+                }
                 TokenType::LeftBracket => {
                     let access_expr = self.expression()?;
                     expr = Expr::Access {
@@ -145,10 +237,10 @@ where
                         field: Box::new(access_expr),
                     };
                     self.match_token(TokenType::RightBracket)?;
-                },
-                _ => unreachable!()
+                }
+                _ => unreachable!(),
             }
-        } 
+        }
         Ok(expr)
     }
 
@@ -174,7 +266,9 @@ where
         } else if self.match_token(TokenType::LeftCurly).is_ok() {
             self.table_init()
         } else {
-            Err(ParserError::UnexpectedToken { token: self.current()? })
+            Err(ParserError::UnexpectedToken {
+                token: self.current()?,
+            })
         }
     }
 
@@ -198,17 +292,14 @@ where
         }
         self.match_token(TokenType::RightParen)?;
         Ok(Expr::Tuple(elems))
-    }    
+    }
 
     fn table_init(&mut self) -> Result<Expr> {
         let mut values = Vec::new();
         let mut keys: Option<Vec<Expr>> = {
             let expr = self.expression()?;
             match expr {
-                Expr::Set {
-                    variable,
-                    value
-                } => {
+                Expr::Set { variable, value } => {
                     values.push(*value);
                     Some(vec![*variable])
                 }
@@ -222,13 +313,10 @@ where
             if let Some(keys) = keys.as_mut() {
                 let expr = self.expression()?;
                 match expr {
-                    Expr::Set {
-                        variable, 
-                        value
-                    } => {
+                    Expr::Set { variable, value } => {
                         keys.push(*variable);
                         values.push(*value);
-                    },
+                    }
                     _ => return Err(ParserError::InitError),
                 }
             } else {
@@ -240,10 +328,7 @@ where
             }
         }
         self.match_token(TokenType::RightCurly)?;
-        Ok(Expr::TableInit {
-            keys,
-            values,
-        })
+        Ok(Expr::TableInit { keys, values })
     }
 }
 
@@ -269,30 +354,33 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{Parser, ParserError, Expr, BinaryOp, UnaryOp, Literal};
+    use super::{BinaryOp, Expr, Literal, Parser, ParserError, UnaryOp};
 
     #[test]
     fn binary_works() {
         let source = "3 + 4 * 2 < 20 - 4";
         let mut parser = Parser::new(source).unwrap();
         let parsed = parser.expression().unwrap();
-        assert_eq!(parsed, Expr::Binary {
-            left: Box::new(Expr::Binary {
-                left: Box::new(Expr::Literal(Literal::Number(3.0))),
-                op: BinaryOp::Plus,
-                right: Box::new(Expr::Binary {
-                    left: Box::new(Expr::Literal(Literal::Number(4.0))),
-                    op: BinaryOp::Star,
-                    right: Box::new(Expr::Literal(Literal::Number(2.0)))
+        assert_eq!(
+            parsed,
+            Expr::Binary {
+                left: Box::new(Expr::Binary {
+                    left: Box::new(Expr::Literal(Literal::Number(3.0))),
+                    op: BinaryOp::Plus,
+                    right: Box::new(Expr::Binary {
+                        left: Box::new(Expr::Literal(Literal::Number(4.0))),
+                        op: BinaryOp::Star,
+                        right: Box::new(Expr::Literal(Literal::Number(2.0)))
+                    }),
                 }),
-            }),
-            op: BinaryOp::Less,
-            right: Box::new(Expr::Binary {
-                left: Box::new(Expr::Literal(Literal::Number(20.0))),
-                op: BinaryOp::Minus,
-                right: Box::new(Expr::Literal(Literal::Number(4.0)))
-            })
-        })
+                op: BinaryOp::Less,
+                right: Box::new(Expr::Binary {
+                    left: Box::new(Expr::Literal(Literal::Number(20.0))),
+                    op: BinaryOp::Minus,
+                    right: Box::new(Expr::Literal(Literal::Number(4.0)))
+                })
+            }
+        )
     }
 
     #[test]
@@ -300,17 +388,18 @@ mod tests {
         let source = "(3 + 4) * 2";
         let mut parser = Parser::new(source).unwrap();
         let parsed = parser.expression().unwrap();
-        assert_eq!(parsed, Expr::Binary {
-            left: Box::new(Expr::Grouping(
-                Box::new(Expr::Binary {
+        assert_eq!(
+            parsed,
+            Expr::Binary {
+                left: Box::new(Expr::Grouping(Box::new(Expr::Binary {
                     left: Box::new(Expr::Literal(Literal::Number(3.0))),
                     op: BinaryOp::Plus,
                     right: Box::new(Expr::Literal(Literal::Number(4.0)))
-                })
-            )),
-            op: BinaryOp::Star,
-            right: Box::new(Expr::Literal(Literal::Number(2.0)))
-        });
+                }))),
+                op: BinaryOp::Star,
+                right: Box::new(Expr::Literal(Literal::Number(2.0)))
+            }
+        );
     }
 
     #[test]
@@ -318,16 +407,20 @@ mod tests {
         let source = "(3, \"hello\")";
         let mut parser = Parser::new(source).unwrap();
         let parsed = parser.expression().unwrap();
-        assert_eq!(parsed, Expr::Tuple(vec![
-            Expr::Literal(Literal::Number(3.0)),
-            Expr::Literal(Literal::Str("hello".to_string()))
-        ]));
+        assert_eq!(
+            parsed,
+            Expr::Tuple(vec![
+                Expr::Literal(Literal::Number(3.0)),
+                Expr::Literal(Literal::Str("hello".to_string()))
+            ])
+        );
 
         let source = "((3 + 2, \"hello\", !false, (nil)))";
         let mut parser = Parser::new(source).unwrap();
         let parsed = parser.expression().unwrap();
-        assert_eq!(parsed, Expr::Grouping(Box::new(
-            Expr::Tuple(vec![
+        assert_eq!(
+            parsed,
+            Expr::Grouping(Box::new(Expr::Tuple(vec![
                 Expr::Binary {
                     left: Box::new(Expr::Literal(Literal::Number(3.0))),
                     op: BinaryOp::Plus,
@@ -338,11 +431,9 @@ mod tests {
                     op: UnaryOp::Bang,
                     expr: Box::new(Expr::Literal(Literal::Bool(false))),
                 },
-                Expr::Grouping(Box::new(
-                    Expr::Literal(Literal::Nil)
-                ))
-            ])
-        )));
+                Expr::Grouping(Box::new(Expr::Literal(Literal::Nil)))
+            ])))
+        );
     }
 
     #[test]
@@ -350,22 +441,25 @@ mod tests {
         let source = "{3 = 6, \"foo\" = bar, \"xd\" = 5 + 3}";
         let mut parser = Parser::new(source).unwrap();
         let parsed = parser.expression().unwrap();
-        assert_eq!(parsed, Expr::TableInit {
-            keys: Some(vec![
-                Expr::Literal(Literal::Number(3.0)),
-                Expr::Literal(Literal::Str("foo".to_string())),
-                Expr::Literal(Literal::Str("xd".to_string())),
-            ]),
-            values: vec![
-                Expr::Literal(Literal::Number(6.0)),
-                Expr::Identifier("bar".to_string()),
-                Expr::Binary {
-                    left: Box::new(Expr::Literal(Literal::Number(5.0))),
-                    op: BinaryOp::Plus,
-                    right: Box::new(Expr::Literal(Literal::Number(3.0)))
-                },
-            ]
-        });
+        assert_eq!(
+            parsed,
+            Expr::TableInit {
+                keys: Some(vec![
+                    Expr::Literal(Literal::Number(3.0)),
+                    Expr::Literal(Literal::Str("foo".to_string())),
+                    Expr::Literal(Literal::Str("xd".to_string())),
+                ]),
+                values: vec![
+                    Expr::Literal(Literal::Number(6.0)),
+                    Expr::Identifier("bar".to_string()),
+                    Expr::Binary {
+                        left: Box::new(Expr::Literal(Literal::Number(5.0))),
+                        op: BinaryOp::Plus,
+                        right: Box::new(Expr::Literal(Literal::Number(3.0)))
+                    },
+                ]
+            }
+        );
 
         let source = "{3 = 6, \"foo\", \"xd\" = 5 + 3}";
         let mut parser = Parser::new(source).unwrap();

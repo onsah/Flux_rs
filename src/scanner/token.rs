@@ -50,6 +50,9 @@ pub enum TokenType {
     Return,
     Break,
     Fn,
+    Then,
+    Do,
+    End,
 
     Eof,
     Invalid,
@@ -76,6 +79,9 @@ lazy_static! {
         "return" => TokenType::Return,
         "break" => TokenType::Break,
         "fn" => TokenType::Fn,
+        "then" => TokenType::Then,
+        "do" => TokenType::Do,
+        "end" => TokenType::End,
     };
 }
 

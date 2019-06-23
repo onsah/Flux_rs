@@ -1,4 +1,4 @@
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Instruction {
     /*pop two values then apply operation */
     Bin(BinaryInstr),
@@ -11,19 +11,35 @@ pub enum Instruction {
     /*push 'false' to stack */
     False,
     /*push a constant from constant pool */
-    Constant { index: u8 },
+    Constant {
+        index: u8,
+    },
     /*pop value from stack and create a global variable*/
     // DefGlobal { index: u8 },
     /*pop value from stack and set it to the global variable */
-    SetGlobal { index: u8 },
+    SetGlobal {
+        index: u8,
+    },
     /*push the value of global to stack*/
-    GetGlobal { index: u8 },
+    GetGlobal {
+        index: u8,
+    },
+    SetLocal {
+        index: u16,
+    },
+    GetLocal {
+        index: u16,
+    },
     /*pop the table then push the value of the key in the constant pool */
-    GetFieldImm { index: u8 },
+    GetFieldImm {
+        index: u8,
+    },
     /*pop the key and table then push the value from the table */
     GetField,
     /*pop the value then pop the table object then get the field name from pool then set the value to table*/
-    SetFieldImm { index: u8 },
+    SetFieldImm {
+        index: u8,
+    },
     /**
      * Pop the table, pop the key then pop the value then set the value to the respective key
      */
@@ -33,9 +49,25 @@ pub enum Instruction {
     /*Pop the value and return */
     Return,
     /*Pop len values and push a tuple */
-    Tuple { len: u8 },
+    Tuple {
+        len: u8,
+    },
     /* Create a table with values */
-    InitTable { len: u8, has_keys: bool },
+    InitTable {
+        len: u8,
+        has_keys: bool,
+    },
+    /* Pop value if truth value matches with 'when_true' then branch */
+    JumpIf {
+        when_true: bool,
+        offset: i8,
+    },
+    /* Directly jump */
+    Jump {
+        offset: i8,
+    },
+    /* Placeholder for patching jumps */
+    Placeholder,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -49,11 +81,11 @@ pub enum BinaryInstr {
     Ge,
     Le,
     Eq,
-    Ne
+    Ne,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum UnaryInstr {
     Negate,
-    Not
+    Not,
 }

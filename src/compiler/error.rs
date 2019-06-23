@@ -1,4 +1,5 @@
-pub use crate::parser::Expr;
+use crate::compiler::Instruction;
+use crate::parser::Expr;
 
 #[derive(Clone, Debug)]
 pub enum CompileError {
@@ -6,4 +7,6 @@ pub enum CompileError {
     UnimplementedExpr(Expr),
     UndefinedVariable { name: String },
     InvalidAssignmentTarget(Expr),
+    WrongPatch(Instruction),
+    TooLongToJump,
 }

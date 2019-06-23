@@ -1,7 +1,7 @@
-use std::rc::Rc;
+use super::Value;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use super::Value;
+use std::rc::Rc;
 
 pub type HeapTable = Rc<RefCell<Table>>;
 
@@ -11,14 +11,15 @@ pub struct Table {
     // array: Vec<Value>,
 }
 
-
 impl Table {
     const NIL: Value = Value::Nil;
-    
+
     pub fn new() -> Self {
-        Table { table: HashMap::new()}
+        Table {
+            table: HashMap::new(),
+        }
     }
-    
+
     pub fn set(&mut self, key: Value, value: Value) {
         self.table.insert(key, value);
     }
