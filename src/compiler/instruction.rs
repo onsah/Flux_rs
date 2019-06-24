@@ -31,15 +31,23 @@ pub enum Instruction {
         index: u16,
     },
     /*pop the table then push the value of the key in the constant pool */
+    // TODO: make this GetFieldConst
     GetFieldImm {
         index: u8,
     },
+    /** pop the table then get the value using key and push to stack
+     * GetFieldImm { key: u16 }
+     */
     /*pop the key and table then push the value from the table */
     GetField,
     /*pop the value then pop the table object then get the field name from pool then set the value to table*/
+    // TODO: make this SetFieldConst
     SetFieldImm {
         index: u8,
     },
+    /** pop the value then pop the table then set the key to the value
+     * SetFieldImm { key: u16 }
+     */
     /**
      * Pop the table, pop the key then pop the value then set the value to the respective key
      */
@@ -54,7 +62,7 @@ pub enum Instruction {
     },
     /* Create a table with values */
     InitTable {
-        len: u8,
+        len: u16,
         has_keys: bool,
     },
     /* Pop value if truth value matches with 'when_true' then branch */

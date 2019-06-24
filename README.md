@@ -5,7 +5,7 @@ A toy language for learning purposes
 Currently can execute expressions
 
 ## Roadmap
-* Implement statements
+* Implement statements (done)
 * Simple patterns matching for tuple expressions
 * Nullable variables and static checking for nullable types
 * Optimization for tables used as arrays (Like lua)

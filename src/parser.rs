@@ -110,7 +110,8 @@ where
     fn while_stmt(&mut self) -> Result<Statement> {
         let condition = self.expression()?;
         self.match_token(TokenType::Then)?;
-        let then_block = self.statement()?;
+        let then_block = Statement::Block(self.block_stmt()?);
+        self.match_token(TokenType::End)?;
         Ok(Statement::While {
             condition,
             then_block: Box::new(then_block),

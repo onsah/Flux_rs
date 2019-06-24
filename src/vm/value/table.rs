@@ -8,7 +8,7 @@ pub type HeapTable = Rc<RefCell<Table>>;
 #[derive(Clone, Debug, PartialEq)]
 pub struct Table {
     table: HashMap<Value, Value>,
-    // array: Vec<Value>,
+    array: Vec<Value>,
 }
 
 impl Table {
@@ -17,6 +17,14 @@ impl Table {
     pub fn new() -> Self {
         Table {
             table: HashMap::new(),
+            array: Vec::new(),
+        }
+    }
+
+    pub fn from_array(array: Vec<Value>) -> Self {
+        Table {
+            table: HashMap::new(),
+            array,
         }
     }
 
@@ -25,6 +33,14 @@ impl Table {
     }
 
     pub fn get(&self, key: &Value) -> &Value {
+        if let &Value::Int(i) = key {
+            if i >= 0 {
+                let i = i as usize;
+                if self.array.len() < i {
+                    return &self.array[i]
+                }
+            }
+        }
         self.table.get(key).unwrap_or(&Self::NIL)
     }
 }

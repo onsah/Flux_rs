@@ -38,8 +38,14 @@ pub fn compile_stmt(stmt: Statement, chunk: &mut Chunk) -> CompileResult<()> {
 }
 
 fn expr_stmt(expr: Expr, chunk: &mut Chunk) -> CompileResult<()> {
+    let is_assignment = match &expr {
+        Expr::Set { .. } => true,
+        _ => false,
+    };
     compile_expr(expr, chunk)?;
-    chunk.push_instr(Instruction::Pop)?;
+    if !is_assignment {
+        chunk.push_instr(Instruction::Pop)?;
+    }
     Ok(())
 }
 
@@ -95,7 +101,15 @@ fn if_stmt(
 }
 
 fn while_stmt(condition: Expr, then_block: Box<Statement>, chunk: &mut Chunk) -> CompileResult<()> {
-    unimplemented!()
+    let start_index = chunk.instructions().len();
+    compile_expr(condition, chunk)?;
+    let patch_index = chunk.push_placeholder()?;
+    compile_stmt(*then_block, chunk)?;
+    let offset = chunk.instructions().len() - patch_index + 1;
+    chunk.patch_placeholder(patch_index, offset as i8, JumpCondition::WhenFalse)?;
+    chunk.push_instr(Instruction::Jump { 
+        offset: -((chunk.instructions().len() - start_index) as i8)
+    })
 }
 
 pub fn compile_expr(expr: Expr, chunk: &mut Chunk) -> CompileResult<()> {
@@ -216,9 +230,11 @@ fn set(variable: Expr, value: Expr, chunk: &mut Chunk) -> CompileResult<()> {
             if let Some(index) = chunk.resolve_local(name.as_str()) {
                 let index = index as u16;
                 chunk.push_instr(Instruction::SetLocal { index })
+                //chunk.push_instr(Instruction::GetLocal { index })
             } else {
                 let index = chunk.add_constant(name.into())?;
                 chunk.push_instr(Instruction::SetGlobal { index })
+                //chunk.push_instr(Instruction::GetGlobal { index })
             }
         }
         Expr::Access { table, field } => {
@@ -241,12 +257,12 @@ fn table_init(keys: Option<Vec<Expr>>, values: Vec<Expr>, chunk: &mut Chunk) -> 
             true
         }
         None => {
-            for value in values {
+            for value in values.into_iter().rev() {
                 compile_impl(value, chunk)?;
             }
             false
         }
     };
-    let len = len as u8;
+    let len = len as u16;
     chunk.push_instr(Instruction::InitTable { len, has_keys })
 }

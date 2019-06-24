@@ -2,12 +2,13 @@ mod error;
 mod frame;
 mod value;
 
+use std::rc::Rc;
+use std::cell::RefCell;
 use crate::compiler::{BinaryInstr, Chunk, Instruction, UnaryInstr};
 pub use error::RuntimeError;
 use frame::Frame;
 use std::collections::HashMap;
-use std::rc::Rc;
-pub use value::Value;
+pub use value::{Value, Table};
 
 pub type RuntimeResult<T> = Result<T, RuntimeError>;
 
@@ -85,6 +86,11 @@ impl Vm {
                          self.jump(offset)?;
                     }
                 }
+                Instruction::InitTable { len, has_keys } => self.init_table(len, has_keys)?,
+                Instruction::GetField => self.get_field()?,
+                Instruction::GetFieldImm { index } => self.get_field_imm(index)?,
+                Instruction::SetField => self.set_field()?,
+                Instruction::SetFieldImm { index } => self.set_field_imm(index)?,
                 _ => return Err(RuntimeError::UnsupportedInstruction(instr)),
             }
             let f = self.current_frame_mut()?;
@@ -92,12 +98,91 @@ impl Vm {
         }
     }
 
+    fn get_field(&mut self) -> RuntimeResult<()> {
+        let key = self.pop_stack()?;
+        let table = self.pop_stack()?;
+        match table {
+            Value::Table(rc) => {
+                let table = rc.borrow_mut();
+                let value = table.get(&key).clone();
+                self.stack.push(value);
+                Ok(())
+            },
+            _ => Err(RuntimeError::TypeError)
+        }
+    }
+
+    fn get_field_imm(&mut self, index: u8) -> RuntimeResult<()> {
+        let table = self.pop_stack()?;
+        let key = &self.current_chunk().constants()[index as usize];
+        match table {
+            Value::Table(rc) => {
+                let table = rc.borrow_mut();
+                let value = table.get(&key).clone();
+                self.stack.push(value);
+                Ok(())
+            },
+            _ => Err(RuntimeError::TypeError)
+        }
+    }
+
+    fn set_field(&mut self) -> RuntimeResult<()> {
+        let table = self.pop_stack()?;
+        let key = self.pop_stack()?;
+        let value = self.pop_stack()?;
+        match table {
+            Value::Table(rc) => {
+                let mut table = rc.borrow_mut();
+                table.set(key, value);
+                Ok(())
+            },
+            _ => Err(RuntimeError::TypeError)
+        }
+    }
+
+    fn set_field_imm(&mut self, index: u8) -> RuntimeResult<()> {
+        let value = self.pop_stack()?;
+        let table = self.pop_stack()?;
+        let key = &self.current_chunk().constants()[index as usize];
+        match table {
+            Value::Table(rc) => {
+                let mut table = rc.borrow_mut();
+                table.set(key.clone(), value);
+                Ok(())
+            },
+            _ => Err(RuntimeError::TypeError)
+        }
+    }
+
+    fn init_table(&mut self, len: u16, has_keys: bool) -> RuntimeResult<()> {
+        let table = match has_keys {
+            true => {
+                let mut table = Table::new();
+                for _ in 0..len {
+                    let value = self.pop_stack()?;
+                    let key = self.pop_stack()?;
+                    table.set(key, value)
+                }
+                table
+            },
+            false => {
+                let mut values = Vec::new();
+                for _ in 0..len {
+                    values.push(self.pop_stack()?)
+                }
+                Table::from_array(values)
+            }
+        };
+        self.stack.push(Value::Table(Rc::new(RefCell::new(table))));
+        Ok(())
+    }
+
     fn jump(&mut self, offset: i8) -> RuntimeResult<()> {
         let f = self.current_frame_mut()?;
         if offset > 0 {
             f.pc += (offset - 1) as usize
         } else {
-            f.pc -= (-offset - 1) as usize
+            f.pc -= (-offset + 1) as usize
         }
         Ok(())
     }
@@ -181,6 +266,7 @@ impl Vm {
 
     fn next_instr(&mut self) -> RuntimeResult<Instruction> {
         let f = self.current_frame()?;
+        println!("pc: {}", f.pc);
         let instr = self.current_chunk().instructions()[f.pc];
         Ok(instr)
     }
