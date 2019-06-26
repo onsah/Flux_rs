@@ -53,6 +53,10 @@ where
             Ok(stmt)
         } else if let Ok(_) = self.match_token(TokenType::While) {
             self.while_stmt()
+        } else if let Ok(_) = self.match_token(TokenType::Print) {
+            self.print_stmt()
+        } else if let Ok(_) = self.match_token(TokenType::Return) {
+            self.return_stmt()
         } else {
             self.expr_stmt()
         }
@@ -116,6 +120,20 @@ where
             condition,
             then_block: Box::new(then_block),
         })
+    }
+
+    fn print_stmt(&mut self) -> Result<Statement> {
+        let expr = self.expression()?;
+        Ok(Statement::Print(expr))
+    }
+
+    fn return_stmt(&mut self) -> Result<Statement> {
+        let expr = if self.match_token(TokenType::Semicolon).is_ok() {
+            Expr::Literal(Literal::Unit)
+        } else {
+            self.expression()?
+        };
+        Ok(Statement::Return(expr))
     }
 
     fn expr_stmt(&mut self) -> Result<Statement> {
@@ -221,6 +239,7 @@ where
         while let Ok(token) = self
             .match_token(TokenType::Dot)
             .or_else(|_| self.match_token(TokenType::LeftBracket))
+            .or_else(|_| self.match_token(TokenType::LeftParen))
         {
             match token.get_type() {
                 TokenType::Dot => {
@@ -238,6 +257,20 @@ where
                         field: Box::new(access_expr),
                     };
                     self.match_token(TokenType::RightBracket)?;
+                }
+                TokenType::LeftParen => {
+                    let mut args = Vec::new();
+                    if let Err(_) = self.match_token(TokenType::RightParen) {
+                        args.push(self.expression()?);
+                        while self.match_token(TokenType::Comma).is_ok() {
+                            args.push(self.expression()?);
+                        }
+                        self.match_token(TokenType::RightParen)?;
+                    }
+                    expr = Expr::Call {
+                        func: Box::new(expr),
+                        args,
+                    }
                 }
                 _ => unreachable!(),
             }
@@ -266,6 +299,8 @@ where
             self.grouping()
         } else if self.match_token(TokenType::LeftCurly).is_ok() {
             self.table_init()
+        } else if self.match_token(TokenType::Fn).is_ok() {
+            self.function()
         } else {
             Err(ParserError::UnexpectedToken {
                 token: self.current()?,
@@ -330,6 +365,25 @@ where
         }
         self.match_token(TokenType::RightCurly)?;
         Ok(Expr::TableInit { keys, values })
+    }
+
+    fn function(&mut self) -> Result<Expr> {
+        let mut args = Vec::new();
+        self.match_token(TokenType::LeftParen)?;
+        if let Ok(token) = self.match_token(TokenType::Identifier) {
+            args.push(token.extract_text());
+            while let Err(_) = self.match_token(TokenType::RightParen) {
+                self.match_token(TokenType::Comma)?;
+                let name = self.match_token(TokenType::Identifier)?;
+                args.push(name.extract_text());
+            }
+        }
+        let body = self.block_stmt()?;
+        self.match_token(TokenType::End)?;
+        Ok(Expr::Function {
+            args,
+            body
+        })
     }
 }
 
@@ -466,5 +520,39 @@ mod tests {
         let mut parser = Parser::new(source).unwrap();
         let parsed = parser.expression();
         assert_eq!(parsed, Err(ParserError::InitError));
+    }
+
+    #[test]
+    fn call_works() {
+        let source = "foo(5 + 2, bar[\"foo\"])";
+        let mut parser = Parser::new(source).unwrap();
+        let parsed = parser.expression().unwrap();
+        assert_eq!(parsed, Expr::Call {
+            func: Box::new(Expr::Identifier("foo".to_string())),
+            args: vec![
+                Expr::Binary {
+                    left: Box::new(Expr::Literal(Literal::Number(5.0))),
+                    op: BinaryOp::Plus,
+                    right: Box::new(Expr::Literal(Literal::Number(2.0))),
+                },
+                Expr::Access {
+                    table: Box::new(Expr::Identifier("bar".to_string())),
+                    field: Box::new(Expr::Literal(Literal::Str("foo".to_string()))),
+                }
+            ]
+        });
+        let source = "bar[\"foo\"].hello()";
+        let mut parser = Parser::new(source).unwrap();
+        let parsed = parser.expression().unwrap();
+        assert_eq!(parsed, Expr::Call {
+            func: Box::new(Expr::Access {
+                table: Box::new(Expr::Access {
+                    table: Box::new(Expr::Identifier("bar".to_string())),
+                    field: Box::new(Expr::Literal(Literal::Str("foo".to_string()))),
+                }),
+                field: Box::new(Expr::Literal(Literal::Str("hello".to_string())))
+            }),
+            args: vec![]
+        })
     }
 }

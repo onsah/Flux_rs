@@ -1,4 +1,5 @@
 use crate::scanner::TokenType;
+use super::Statement;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
@@ -27,6 +28,14 @@ pub enum Expr {
         keys: Option<Vec<Expr>>,
         values: Vec<Expr>,
     },
+    Function {
+        args: Vec<String>,
+        body: Vec<Statement>,
+    },
+    Call {
+        func: Box<Expr>,
+        args: Vec<Expr>,
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -34,6 +43,7 @@ pub enum Literal {
     Str(String),
     Number(f64),
     Bool(bool),
+    Unit,
     Nil,
 }
 

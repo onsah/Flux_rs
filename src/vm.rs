@@ -8,7 +8,7 @@ use crate::compiler::{BinaryInstr, Chunk, Instruction, UnaryInstr};
 pub use error::RuntimeError;
 use frame::Frame;
 use std::collections::HashMap;
-pub use value::{Value, Table};
+pub use value::{Value, Table, Function};
 
 pub type RuntimeResult<T> = Result<T, RuntimeError>;
 
@@ -37,7 +37,7 @@ impl Vm {
 
     #[inline]
     fn init_call(&mut self) {
-        let frame = Frame::new(0, None);
+        let frame = Frame::new(0, 0);
         self.frames.push(frame)
     }
 
@@ -46,6 +46,7 @@ impl Vm {
             let instr = self.next_instr()?;
             match instr {
                 Instruction::Nil => self.stack.push(Value::Nil),
+                Instruction::Unit => self.stack.push(Value::Unit),
                 Instruction::True => self.stack.push(Value::Bool(true)),
                 Instruction::False => self.stack.push(Value::Bool(false)),
                 Instruction::Constant { index } => {
@@ -55,9 +56,20 @@ impl Vm {
                 Instruction::Pop => {
                     self.pop_stack()?;
                 }
-                Instruction::Return => match self.stack.pop() {
-                    Some(value) => return Ok(value),
-                    None => return Ok(Value::Nil),
+                Instruction::Return { return_value } => {
+                    // println!("Call Stack:\n{:?}", self.frames);
+                    let value = match return_value {
+                        true => self.pop_stack()?,
+                        false => Value::Unit,
+                    };
+                    while self.stack.len() > self.current_frame()?.stack_top() {
+                        self.pop_stack()?;
+                    }
+                    self.stack.push(value);
+                    self.frames.pop().unwrap();
+                    if self.frames.is_empty() {
+                        return self.pop_stack()
+                    }
                 },
                 Instruction::Bin(bin) => self.binary(bin)?,
                 Instruction::Unary(unary) => self.unary(unary)?,
@@ -77,7 +89,9 @@ impl Vm {
                     self.stack.push(self.stack[index as usize].clone());
                 }
                 Instruction::SetLocal { index } => {
-                    self.stack[index as usize] = self.stack.last().unwrap().clone();
+                    if self.stack.len() != index as usize {
+                        self.stack[index as usize] = self.pop_stack()?;
+                    }
                 }
                 Instruction::Jump { offset } => self.jump(offset)?,
                 Instruction::JumpIf { offset, when_true } => {
@@ -91,10 +105,48 @@ impl Vm {
                 Instruction::GetFieldImm { index } => self.get_field_imm(index)?,
                 Instruction::SetField => self.set_field()?,
                 Instruction::SetFieldImm { index } => self.set_field_imm(index)?,
+                Instruction::Print => {
+                    let value = self.pop_stack()?;
+                    println!("{}", value)
+                }
+                Instruction::Tuple { len } => {
+                    let mut values = Vec::with_capacity(len as usize);
+                    for _ in 0..len {
+                        values.push(self.pop_stack()?)
+                    }
+                    let tuple = Value::Tuple(values.into_iter().rev().collect());
+                    self.stack.push(tuple)
+                }
+                Instruction::GetFnLocal { index } => {
+                    // Need to resolve dynamcally
+                    let index = self.current_frame()?.stack_top() + index as usize;
+                    self.stack.push(self.stack[index].clone());
+                }
+                Instruction::SetFnLocal { index } => {
+                    let index = self.current_frame()?.stack_top() + index as usize;
+                    if self.stack.len() != index as usize {
+                        self.stack[index as usize] = self.pop_stack()?;
+                    }
+                }
+                Instruction::FuncDef { args_len, code_start } => {
+                    self.stack.push(Value::Function(Function::new(args_len, code_start)))
+                }
+                Instruction::Call => {
+                    let function = self.pop_stack()?;
+                    match function {
+                        Value::Function(function) => {
+                            let pc = function.code_start();
+                            let stack_top = self.stack.len() - function.args_len() as usize;
+                            self.frames.push(Frame { pc, stack_top });
+                        },
+                        _ => return Err(RuntimeError::TypeError),
+                    }
+                }
                 _ => return Err(RuntimeError::UnsupportedInstruction(instr)),
             }
             let f = self.current_frame_mut()?;
             f.pc += 1;
+            //self.print_stack()
         }
     }
 
@@ -167,8 +219,8 @@ impl Vm {
             },
             false => {
                 let mut values = Vec::new();
-                for _ in 0..len {
-                    values.push(self.pop_stack()?)
+                for i in 0..len {
+                    values.push((Value::Int(i as i32), self.pop_stack()?))
                 }
                 Table::from_array(values)
             }
@@ -266,7 +318,7 @@ impl Vm {
 
     fn next_instr(&mut self) -> RuntimeResult<Instruction> {
         let f = self.current_frame()?;
-        println!("pc: {}", f.pc);
+        // println!("pc: {}", f.pc);
         let instr = self.current_chunk().instructions()[f.pc];
         Ok(instr)
     }
@@ -300,5 +352,13 @@ impl Vm {
             Some(value) => Ok(value),
             None => Err(RuntimeError::EmptyStack),
         }
+    }
+
+    fn print_stack(&self) {
+        println!("**********STACK LEN: {}**********", self.stack.len());
+        for value in self.stack.iter() {
+            println!("{:?}", value)
+        }
+        println!("**********STACK END**********");
     }
 }

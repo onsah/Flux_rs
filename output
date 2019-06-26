@@ -1,0 +1,29 @@
+0: Constant { index: 0 }
+1: Constant { index: 1 }
+2: Constant { index: 2 }
+3: GetLocal { index: 0 }
+4: Constant { index: 3 }
+5: Bin(Lt)
+6: JumpIf { when_true: false, offset: 14 }
+7: GetLocal { index: 1 }
+8: GetLocal { index: 2 }
+9: SetLocal { index: 1 }
+10: GetLocal { index: 2 }
+11: GetLocal { index: 3 }
+12: Bin(Add)
+13: SetLocal { index: 2 }
+14: GetLocal { index: 0 }
+15: Constant { index: 4 }
+16: Bin(Add)
+17: SetLocal { index: 0 }
+18: Pop
+19: Jump { offset: -16 }
+20: GetLocal { index: 1 }
+21: GetLocal { index: 2 }
+22: Tuple { len: 2 }
+23: Print
+24: Return
+Tuple([Int(1346269), Int(832040)])
+Int(
+    1346269
+)

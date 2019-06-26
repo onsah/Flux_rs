@@ -1,6 +1,6 @@
 use super::Expr;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Statement {
     Expr(Expr),
     Let {
@@ -17,4 +17,6 @@ pub enum Statement {
         condition: Expr,
         then_block: Box<Statement>,
     },
+    Print(Expr),
+    Return(Expr),
 }

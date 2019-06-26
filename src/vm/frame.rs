@@ -4,20 +4,18 @@ use crate::compiler::{Chunk, Instruction};
 #[derive(Copy, Clone, Debug)]
 pub struct Frame {
     pub(super) pc: usize,
-    pub(super) start: usize,
-    pub(super) ret_adress: Option<usize>,
+    pub(super) stack_top: usize,
 }
 
 impl Frame {
-    pub fn new(start: usize, ret_adress: Option<usize>) -> Self {
+    pub fn new(pc: usize, stack_top: usize) -> Self {
         Frame {
-            pc: start,
-            start,
-            ret_adress,
+            pc,
+            stack_top
         }
     }
 
-    pub fn return_frame(self) -> Option<usize> {
-        self.ret_adress
+    pub fn stack_top(&self) -> usize {
+        self.stack_top
     }
 }

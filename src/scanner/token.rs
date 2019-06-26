@@ -53,6 +53,7 @@ pub enum TokenType {
     Then,
     Do,
     End,
+    Print,
 
     Eof,
     Invalid,
@@ -82,6 +83,7 @@ lazy_static! {
         "then" => TokenType::Then,
         "do" => TokenType::Do,
         "end" => TokenType::End,
+        "print" => TokenType::Print,
     };
 }
 
@@ -96,6 +98,10 @@ impl Token {
 
     pub fn text(&self) -> &str {
         &self.text
+    }
+
+    pub fn extract_text(self) -> String {
+        self.text
     }
 }
 

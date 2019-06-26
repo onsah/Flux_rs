@@ -6,6 +6,7 @@ pub enum Instruction {
     Unary(UnaryInstr),
     /*push 'nil' to stack */
     Nil,
+    Unit,
     /*push 'true' to stack */
     True,
     /*push 'false' to stack */
@@ -24,6 +25,7 @@ pub enum Instruction {
     GetGlobal {
         index: u8,
     },
+    /* These instructions are redundant because they are equivalent to SetFnLocal with top call frame */
     SetLocal {
         index: u16,
     },
@@ -55,7 +57,7 @@ pub enum Instruction {
     /*Simply pop the top value from stack */
     Pop,
     /*Pop the value and return */
-    Return,
+    Return { return_value: bool } ,
     /*Pop len values and push a tuple */
     Tuple {
         len: u8,
@@ -76,6 +78,18 @@ pub enum Instruction {
     },
     /* Placeholder for patching jumps */
     Placeholder,
+    Print,
+    FuncDef {
+        args_len: u8,
+        code_start: usize,
+    },
+    GetFnLocal {
+        index: u16,
+    },
+    SetFnLocal {
+        index: u16,
+    },
+    Call,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]

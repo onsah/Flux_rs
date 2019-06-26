@@ -1,6 +1,6 @@
 use super::Instruction;
 use super::{CompileError, CompileResult};
-use crate::vm::Value;
+use crate::vm::{Value, Function};
 use std::collections::HashSet;
 
 #[derive(Clone, Debug)]
@@ -9,12 +9,14 @@ pub struct Chunk {
     constants: Vec<Value>,
     locals: Vec<Local>,
     depth: u8,
+    function_depth: Vec<u8>,
 }
 
 #[derive(Clone, Debug)]
-struct Local {
+pub struct Local {
     name: String,
     depth: u8,
+    function: Option<u8>,
 }
 
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -33,6 +35,7 @@ impl Chunk {
             constants: Vec::new(),
             locals: Vec::new(),
             depth: 0,
+            function_depth: Vec::new(),
         }
     }
 
@@ -116,14 +119,31 @@ impl Chunk {
         }
     }
 
-    pub fn resolve_local(&self, name: &str) -> Option<usize> {
+    pub fn resolve_local(&self, name: &str) -> Option<(usize, Local)> {
         self.locals
             .iter()
             .enumerate()
             .rev()
             .find_map(|(i, l)| match l.name == name {
-                true => Some(i),
+                true => {
+                    if l.in_function() {
+                        self.resolve_fn_local(name)
+                    } else {
+                        Some((i, l.clone()))
+                    }
+                },
                 false => None,
+            })
+    }
+
+    fn resolve_fn_local(&self, name: &str) -> Option<(usize, Local)> {
+        self.locals
+            .iter()
+            .filter(|l| l.depth >= *self.function_depth.last().unwrap())
+            .enumerate()
+            .find_map(|(i, l)| match l.name == name {
+                true => Some((i, l.clone())),
+                false => None
             })
     }
 
@@ -131,11 +151,20 @@ impl Chunk {
         self.locals.push(Local {
             name,
             depth: self.depth,
+            function: match self.function_depth.len() {
+                0 => None,
+                i => Some(i as u8 - 1),
+            }
         })
     }
 
     pub fn scope_incr(&mut self) {
         self.depth += 1
+    }
+
+    pub fn enter_function(&mut self) {
+        self.scope_incr();
+        self.function_depth.push(self.depth)
     }
 
     pub fn scope_decr(&mut self) -> usize {
@@ -146,6 +175,15 @@ impl Chunk {
             pop_count += 1;
         }
         pop_count
+    }
+
+    pub fn exit_function(&mut self) -> usize {
+        self.function_depth.pop().unwrap();
+        self.scope_decr()
+    }
+    
+    pub fn is_in_function(&self) -> bool {
+        !self.function_depth.is_empty()
     }
 
     #[inline]
@@ -159,5 +197,11 @@ impl Chunk {
 
     pub fn constants(&self) -> &[Value] {
         self.constants.as_slice()
+    }
+}
+
+impl Local {
+    pub fn in_function(&self) -> bool {
+        self.function.is_some()
     }
 }

@@ -16,7 +16,7 @@ pub fn compile(stmts: Vec<Statement>) -> CompileResult<Chunk> {
     for stmt in stmts {
         compile_stmt(stmt, &mut chunk)?;
     }
-    chunk.push_instr(Instruction::Return)?;
+    chunk.push_instr(Instruction::Return { return_value: false })?;
     Ok(chunk)
 }
 
@@ -34,6 +34,14 @@ pub fn compile_stmt(stmt: Statement, chunk: &mut Chunk) -> CompileResult<()> {
             condition,
             then_block,
         } => while_stmt(condition, then_block, chunk),
+        Statement::Print(expr) => {
+            compile_expr(expr, chunk)?;
+            chunk.push_instr(Instruction::Print)
+        }
+        Statement::Return(expr) => {
+            compile_expr(expr, chunk)?;
+            chunk.push_instr(Instruction::Return { return_value: true })
+        }
     }
 }
 
@@ -50,8 +58,8 @@ fn expr_stmt(expr: Expr, chunk: &mut Chunk) -> CompileResult<()> {
 }
 
 fn let_stmt(name: String, value: Expr, chunk: &mut Chunk) -> CompileResult<()> {
-    compile_expr(value, chunk)?;
     chunk.push_local(name);
+    compile_expr(value, chunk)?;
     Ok(())
 }
 
@@ -127,6 +135,8 @@ fn compile_impl(expr: Expr, chunk: &mut Chunk) -> CompileResult<()> {
         Expr::Access { table, field } => access(*table, *field, chunk),
         Expr::Set { variable, value } => set(*variable, *value, chunk),
         Expr::TableInit { keys, values } => table_init(keys, values, chunk),
+        Expr::Function { args, body } => function_def(args, body, chunk),
+        Expr::Call { func, args } => call(*func, args, chunk),
         _ => Err(CompileError::UnimplementedExpr(expr)),
     }
 }
@@ -148,13 +158,18 @@ fn literal(lit: Literal, chunk: &mut Chunk) -> CompileResult<()> {
             chunk.push_instr(Instruction::Constant { index })?;
             Ok(())
         }
+        Literal::Unit => chunk.push_instr(Instruction::Unit),
     }
 }
 
 fn ident(name: String, chunk: &mut Chunk) -> CompileResult<()> {
-    if let Some(index) = chunk.resolve_local(name.as_str()) {
+    if let Some((index, local)) = chunk.resolve_local(name.as_str()) {
         let index = index as u16;
-        chunk.push_instr(Instruction::GetLocal { index })
+        if local.in_function() {
+            chunk.push_instr(Instruction::GetFnLocal { index })
+        } else {
+            chunk.push_instr(Instruction::GetLocal { index })
+        }
     } else {
         if let Some(index) = chunk.has_string(name.as_str()) {
             chunk.push_instr(Instruction::GetGlobal { index })
@@ -224,20 +239,24 @@ fn access(table: Expr, field: Expr, chunk: &mut Chunk) -> CompileResult<()> {
 
 fn set(variable: Expr, value: Expr, chunk: &mut Chunk) -> CompileResult<()> {
     // TODO: pattern matching for tuple expressions
-    compile_impl(value, chunk)?;
+    
     match variable {
         Expr::Identifier(name) => {
-            if let Some(index) = chunk.resolve_local(name.as_str()) {
+            let index = chunk.add_constant(name.clone().into())?;   
+            compile_impl(value, chunk)?;
+            if let Some((index, local)) = chunk.resolve_local(name.as_str()) {
                 let index = index as u16;
-                chunk.push_instr(Instruction::SetLocal { index })
-                //chunk.push_instr(Instruction::GetLocal { index })
+                if local.in_function() {
+                    chunk.push_instr(Instruction::SetFnLocal { index })
+                } else {
+                    chunk.push_instr(Instruction::SetLocal { index })
+                }
             } else {
-                let index = chunk.add_constant(name.into())?;
                 chunk.push_instr(Instruction::SetGlobal { index })
-                //chunk.push_instr(Instruction::GetGlobal { index })
             }
         }
         Expr::Access { table, field } => {
+            compile_impl(value, chunk)?;
             compile_impl(*field, chunk)?;
             compile_impl(*table, chunk)?;
             chunk.push_instr(Instruction::SetField)
@@ -265,4 +284,34 @@ fn table_init(keys: Option<Vec<Expr>>, values: Vec<Expr>, chunk: &mut Chunk) -> 
     };
     let len = len as u16;
     chunk.push_instr(Instruction::InitTable { len, has_keys })
+}
+
+fn function_def(args: Vec<String>, body: Vec<Statement>, chunk: &mut Chunk) -> CompileResult<()> {
+    let patch_index = chunk.push_placeholder()?;  // To prevent accidentally entering a function
+    let args_len = args.len() as u8;
+    let code_start = chunk.instructions().len() - 1;
+    chunk.enter_function();
+    for arg in args {
+        chunk.push_local(arg);
+    }
+    for stmt in body {
+        compile_stmt(stmt, chunk)?;
+    }
+    let pop_count = chunk.exit_function();
+    for _ in 0..pop_count {
+        chunk.push_instr(Instruction::Pop)?;
+    }
+    chunk.push_instr(Instruction::Return { return_value: false })?;
+    // Patch after inserting pop instructions
+    let offset = chunk.instructions().len() - patch_index;
+    chunk.patch_placeholder(patch_index, offset as i8, JumpCondition::None)?;
+    chunk.push_instr(Instruction::FuncDef { args_len, code_start })
+} 
+
+fn call(func: Expr, args: Vec<Expr>, chunk: &mut Chunk) -> CompileResult<()> {
+    for arg in args {
+        compile_expr(arg, chunk)?;
+    }
+    compile_expr(func, chunk)?;
+    chunk.push_instr(Instruction::Call)
 }
