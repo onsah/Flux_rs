@@ -7,311 +7,426 @@ use crate::parser::{BinaryOp, Expr, Literal, Statement, UnaryOp};
 use crate::vm::Value;
 pub(self) use error::CompileError;
 pub use instruction::{BinaryInstr, Instruction, UnaryInstr};
-use std::rc::Rc;
 
 pub type CompileResult<T> = Result<T, CompileError>;
 
-pub fn compile(stmts: Vec<Statement>) -> CompileResult<Chunk> {
-    let mut chunk = Chunk::new();
-    for stmt in stmts {
-        compile_stmt(stmt, &mut chunk)?;
-    }
-    chunk.push_instr(Instruction::Return { return_value: false })?;
-    Ok(chunk)
+pub struct Compiler {
+    chunk: Chunk,
+    locals: Vec<Local>,
+    depth: u8,
+    closure_depths: Vec<u8>,
 }
 
-pub fn compile_stmt(stmt: Statement, chunk: &mut Chunk) -> CompileResult<()> {
-    match stmt {
-        Statement::Expr(expr) => expr_stmt(expr, chunk),
-        Statement::Let { name, value } => let_stmt(name, value, chunk),
-        Statement::Block(statements) => block_stmt(statements, chunk),
-        Statement::If {
-            condition,
-            then_block,
-            else_block,
-        } => if_stmt(condition, then_block, else_block, chunk),
-        Statement::While {
-            condition,
-            then_block,
-        } => while_stmt(condition, then_block, chunk),
-        Statement::Print(expr) => {
-            compile_expr(expr, chunk)?;
-            chunk.push_instr(Instruction::Print)
+#[derive(Clone, Debug)]
+pub struct Local {
+    name: String,
+    depth: u8,
+    // n means the function in compiler.closure_depths[n]
+    closure: Option<u8>,
+}
+
+/**
+ * Compiling
+ */
+impl Compiler {
+    pub fn compile(stmts: Vec<Statement>) -> CompileResult<Chunk> {
+        let mut compiler = Self::new();
+        for stmt in stmts {
+            compiler.compile_stmt(stmt)?;
         }
-        Statement::Return(expr) => {
-            compile_expr(expr, chunk)?;
-            chunk.push_instr(Instruction::Return { return_value: true })
+        compiler.chunk.push_instr(Instruction::Return {
+            return_value: false,
+        })?;
+        Ok(compiler.chunk)
+    }
+
+    fn new() -> Self {
+        Compiler {
+            chunk: Chunk::new(),
+            locals: Vec::new(),
+            depth: 0,
+            closure_depths: Vec::new(),
         }
     }
-}
 
-fn expr_stmt(expr: Expr, chunk: &mut Chunk) -> CompileResult<()> {
-    let is_assignment = match &expr {
-        Expr::Set { .. } => true,
-        _ => false,
-    };
-    compile_expr(expr, chunk)?;
-    if !is_assignment {
-        chunk.push_instr(Instruction::Pop)?;
+    fn compile_stmt(&mut self, stmt: Statement) -> CompileResult<()> {
+        match stmt {
+            Statement::Expr(expr) => self.expr_stmt(expr),
+            Statement::Let { name, value } => self.let_stmt(name, value),
+            Statement::Block(statements) => self.block_stmt(statements),
+            Statement::If {
+                condition,
+                then_block,
+                else_block,
+            } => self.if_stmt(condition, then_block, else_block),
+            Statement::While {
+                condition,
+                then_block,
+            } => self.while_stmt(condition, then_block),
+            Statement::Print(expr) => {
+                self.compile_expr(expr)?;
+                self.chunk.push_instr(Instruction::Print)
+            }
+            Statement::Return(expr) => {
+                self.compile_expr(expr)?;
+                self.chunk
+                    .push_instr(Instruction::Return { return_value: true })
+            }
+        }
     }
-    Ok(())
-}
 
-fn let_stmt(name: String, value: Expr, chunk: &mut Chunk) -> CompileResult<()> {
-    chunk.push_local(name);
-    compile_expr(value, chunk)?;
-    Ok(())
-}
+    fn expr_stmt(&mut self, expr: Expr) -> CompileResult<()> {
+        let is_assignment = match &expr {
+            Expr::Set { .. } => true,
+            _ => false,
+        };
+        self.compile_expr(expr)?;
+        if !is_assignment {
+            self.chunk.push_instr(Instruction::Pop)?;
+        }
+        Ok(())
+    }
 
-fn block_stmt(statements: Vec<Statement>, chunk: &mut Chunk) -> CompileResult<()> {
-    chunk.scope_incr();
-    for stmt in statements {
-        compile_stmt(stmt, chunk)?;
+    fn let_stmt(&mut self, name: String, value: Expr) -> CompileResult<()> {
+        self.push_local(name);
+        self.compile_expr(value)?;
+        Ok(())
     }
-    for _ in 0..chunk.scope_decr() {
-        chunk.push_instr(Instruction::Pop)?;
-    }
-    Ok(())
-}
 
-// TODO: Better PLEASE
-fn if_stmt(
-    condition: Expr,
-    then_block: Box<Statement>,
-    else_block: Option<Box<Statement>>,
-    chunk: &mut Chunk,
-) -> CompileResult<()> {
-    compile_expr(condition, chunk)?;
-    let patch_index = chunk.push_placeholder()?;
-    compile_stmt(*then_block, chunk)?;
-    let offset = chunk.instructions().len() - patch_index;
-    if offset > std::i8::MAX as usize {
-        return Err(CompileError::TooLongToJump);
+    fn block_stmt(&mut self, statements: Vec<Statement>) -> CompileResult<()> {
+        self.scope_incr();
+        for stmt in statements {
+            self.compile_stmt(stmt)?;
+        }
+        for _ in 0..self.scope_decr() {
+            self.chunk.push_instr(Instruction::Pop)?;
+        }
+        Ok(())
     }
-    chunk.patch_placeholder(patch_index, offset as i8, JumpCondition::WhenFalse)?;
-    let has_else = if let Some(else_block) = else_block {
-        let patch_index = chunk.push_placeholder()?;
-        compile_stmt(*else_block, chunk)?;
-        let offset = chunk.instructions().len() - patch_index;
+
+    // TODO: Better PLEASE
+    fn if_stmt(
+        &mut self,
+        condition: Expr,
+        then_block: Box<Statement>,
+        else_block: Option<Box<Statement>>,
+    ) -> CompileResult<()> {
+        self.compile_expr(condition)?;
+        let patch_index = self.chunk.push_placeholder()?;
+        self.compile_stmt(*then_block)?;
+        let offset = self.chunk.instructions().len() - patch_index;
         if offset > std::i8::MAX as usize {
             return Err(CompileError::TooLongToJump);
         }
-        chunk.patch_placeholder(patch_index, offset as i8, JumpCondition::None)?;
-        true
-    } else {
-        false
-    };
-    // Jump one further
-    if has_else {
-        chunk.patch_placeholder(patch_index, (offset + 1) as i8, JumpCondition::WhenFalse)?;
-    }
-    Ok(())
-}
-
-fn while_stmt(condition: Expr, then_block: Box<Statement>, chunk: &mut Chunk) -> CompileResult<()> {
-    let start_index = chunk.instructions().len();
-    compile_expr(condition, chunk)?;
-    let patch_index = chunk.push_placeholder()?;
-    compile_stmt(*then_block, chunk)?;
-    let offset = chunk.instructions().len() - patch_index + 1;
-    chunk.patch_placeholder(patch_index, offset as i8, JumpCondition::WhenFalse)?;
-    chunk.push_instr(Instruction::Jump { 
-        offset: -((chunk.instructions().len() - start_index) as i8)
-    })
-}
-
-pub fn compile_expr(expr: Expr, chunk: &mut Chunk) -> CompileResult<()> {
-    compile_impl(expr, chunk)
-}
-
-fn compile_impl(expr: Expr, chunk: &mut Chunk) -> CompileResult<()> {
-    match expr {
-        Expr::Literal(lit) => literal(lit, chunk),
-        Expr::Identifier(name) => ident(name, chunk),
-        Expr::Unary { op, expr } => unary(*expr, op, chunk),
-        Expr::Binary { left, op, right } => binary(*left, *right, op, chunk),
-        Expr::Grouping(expr) => compile_impl(*expr, chunk),
-        Expr::Tuple(exprs) => tuple(exprs, chunk),
-        Expr::Access { table, field } => access(*table, *field, chunk),
-        Expr::Set { variable, value } => set(*variable, *value, chunk),
-        Expr::TableInit { keys, values } => table_init(keys, values, chunk),
-        Expr::Function { args, body } => function_def(args, body, chunk),
-        Expr::Call { func, args } => call(*func, args, chunk),
-        _ => Err(CompileError::UnimplementedExpr(expr)),
-    }
-}
-
-fn literal(lit: Literal, chunk: &mut Chunk) -> CompileResult<()> {
-    match lit {
-        Literal::Nil => chunk.push_instr(Instruction::Nil),
-        Literal::Bool(b) => chunk.push_instr(match b {
-            true => Instruction::True,
-            false => Instruction::False,
-        }),
-        Literal::Number(n) => match n.fract() == 0.0 {
-            true => chunk.push_constant(Value::Int(n.trunc() as i32)),
-            false => chunk.push_constant(Value::Number(n)),
-        }
-        .map(|_| ()),
-        Literal::Str(string) => {
-            let index = chunk.add_constant(string.into())?;
-            chunk.push_instr(Instruction::Constant { index })?;
-            Ok(())
-        }
-        Literal::Unit => chunk.push_instr(Instruction::Unit),
-    }
-}
-
-fn ident(name: String, chunk: &mut Chunk) -> CompileResult<()> {
-    if let Some((index, local)) = chunk.resolve_local(name.as_str()) {
-        let index = index as u16;
-        if local.in_function() {
-            chunk.push_instr(Instruction::GetFnLocal { index })
-        } else {
-            chunk.push_instr(Instruction::GetLocal { index })
-        }
-    } else {
-        if let Some(index) = chunk.has_string(name.as_str()) {
-            chunk.push_instr(Instruction::GetGlobal { index })
-        } else {
-            Err(CompileError::UndefinedVariable { name })
-        }
-    }
-}
-
-fn unary(expr: Expr, op: UnaryOp, chunk: &mut Chunk) -> CompileResult<()> {
-    compile_impl(expr, chunk)?;
-    let unary = match op {
-        UnaryOp::Minus => UnaryInstr::Negate,
-        UnaryOp::Bang => UnaryInstr::Not,
-    };
-    chunk.push_instr(Instruction::Unary(unary))
-}
-
-fn binary(left: Expr, right: Expr, op: BinaryOp, chunk: &mut Chunk) -> CompileResult<()> {
-    compile_impl(left, chunk)?;
-    compile_impl(right, chunk)?;
-    let binary = match op {
-        BinaryOp::Plus => BinaryInstr::Add,
-        BinaryOp::Minus => BinaryInstr::Sub,
-        BinaryOp::Star => BinaryInstr::Mul,
-        BinaryOp::Slash => BinaryInstr::Div,
-
-        BinaryOp::Greater => BinaryInstr::Gt,
-        BinaryOp::Less => BinaryInstr::Lt,
-        BinaryOp::GreaterEqual => BinaryInstr::Ge,
-        BinaryOp::LessEqual => BinaryInstr::Le,
-
-        BinaryOp::EqualEqual => BinaryInstr::Eq,
-        BinaryOp::BangEqual => BinaryInstr::Ne,
-    };
-    chunk.push_instr(Instruction::Bin(binary))
-}
-
-fn tuple(exprs: Vec<Expr>, chunk: &mut Chunk) -> CompileResult<()> {
-    let len = exprs.len() as u8;
-    for expr in exprs {
-        compile_impl(expr, chunk)?
-    }
-    chunk.push_instr(Instruction::Tuple { len })
-}
-
-fn access(table: Expr, field: Expr, chunk: &mut Chunk) -> CompileResult<()> {
-    compile_impl(table, chunk)?;
-    let access_instr = match field {
-        Expr::Literal(lit) => match lit {
-            Literal::Str(string) => {
-                let index = chunk.add_constant(string.into())?;
-                Instruction::GetFieldImm { index }
+        self.chunk
+            .patch_placeholder(patch_index, offset as i8, JumpCondition::WhenFalse)?;
+        let has_else = if let Some(else_block) = else_block {
+            let patch_index = self.chunk.push_placeholder()?;
+            self.compile_stmt(*else_block)?;
+            let offset = self.chunk.instructions().len() - patch_index;
+            if offset > std::i8::MAX as usize {
+                return Err(CompileError::TooLongToJump);
             }
-            _ => {
-                literal(lit, chunk)?;
+            self.chunk
+                .patch_placeholder(patch_index, offset as i8, JumpCondition::None)?;
+            true
+        } else {
+            false
+        };
+        // Jump one further
+        if has_else {
+            self.chunk.patch_placeholder(
+                patch_index,
+                (offset + 1) as i8,
+                JumpCondition::WhenFalse,
+            )?;
+        }
+        Ok(())
+    }
+
+    fn while_stmt(&mut self, condition: Expr, then_block: Box<Statement>) -> CompileResult<()> {
+        let start_index = self.chunk.instructions().len();
+        self.compile_expr(condition)?;
+        let patch_index = self.chunk.push_placeholder()?;
+        self.compile_stmt(*then_block)?;
+        let offset = self.chunk.instructions().len() - patch_index + 1;
+        self.chunk
+            .patch_placeholder(patch_index, offset as i8, JumpCondition::WhenFalse)?;
+        self.chunk.push_instr(Instruction::Jump {
+            offset: -((self.chunk.instructions().len() - start_index) as i8),
+        })
+    }
+
+    fn compile_expr(&mut self, expr: Expr) -> CompileResult<()> {
+        match expr {
+            Expr::Literal(lit) => self.literal(lit),
+            Expr::Identifier(name) => self.ident(name),
+            Expr::Unary { op, expr } => self.unary(*expr, op),
+            Expr::Binary { left, op, right } => self.binary(*left, *right, op),
+            Expr::Grouping(expr) => self.compile_expr(*expr),
+            Expr::Tuple(exprs) => self.tuple(exprs),
+            Expr::Access { table, field } => self.access(*table, *field),
+            Expr::Set { variable, value } => self.set(*variable, *value),
+            Expr::TableInit { keys, values } => self.table_init(keys, values),
+            Expr::Function { args, body } => self.function_def(args, body),
+            Expr::Call { func, args } => self.call(*func, args),
+            _ => Err(CompileError::UnimplementedExpr(expr)),
+        }
+    }
+
+    fn literal(&mut self, lit: Literal) -> CompileResult<()> {
+        match lit {
+            Literal::Nil => self.chunk.push_instr(Instruction::Nil),
+            Literal::Bool(b) => self.chunk.push_instr(match b {
+                true => Instruction::True,
+                false => Instruction::False,
+            }),
+            Literal::Number(n) => match n.fract() == 0.0 {
+                true => self.chunk.push_constant(Value::Int(n.trunc() as i32)),
+                false => self.chunk.push_constant(Value::Number(n)),
+            }
+            .map(|_| ()),
+            Literal::Str(string) => {
+                let index = self.chunk.add_constant(string.into())?;
+                self.chunk.push_instr(Instruction::Constant { index })?;
+                Ok(())
+            }
+            Literal::Unit => self.chunk.push_instr(Instruction::Unit),
+        }
+    }
+
+    fn ident(&mut self, name: String) -> CompileResult<()> {
+        if let Some((index, local)) = self.resolve_local(name.as_str()) {
+            let index = index as u16;
+            if local.is_in_function() {
+                self.chunk.push_instr(Instruction::GetFnLocal { index })
+            } else {
+                self.chunk.push_instr(Instruction::GetLocal { index })
+            }
+        } else {
+            if let Some(index) = self.chunk.has_string(name.as_str()) {
+                self.chunk.push_instr(Instruction::GetGlobal { index })
+            } else {
+                Err(CompileError::UndefinedVariable { name })
+            }
+        }
+    }
+
+    fn unary(&mut self, expr: Expr, op: UnaryOp) -> CompileResult<()> {
+        self.compile_expr(expr)?;
+        let unary = match op {
+            UnaryOp::Minus => UnaryInstr::Negate,
+            UnaryOp::Bang => UnaryInstr::Not,
+        };
+        self.chunk.push_instr(Instruction::Unary(unary))
+    }
+
+    fn binary(&mut self, left: Expr, right: Expr, op: BinaryOp) -> CompileResult<()> {
+        self.compile_expr(left)?;
+        self.compile_expr(right)?;
+        let binary = match op {
+            BinaryOp::Plus => BinaryInstr::Add,
+            BinaryOp::Minus => BinaryInstr::Sub,
+            BinaryOp::Star => BinaryInstr::Mul,
+            BinaryOp::Slash => BinaryInstr::Div,
+
+            BinaryOp::Greater => BinaryInstr::Gt,
+            BinaryOp::Less => BinaryInstr::Lt,
+            BinaryOp::GreaterEqual => BinaryInstr::Ge,
+            BinaryOp::LessEqual => BinaryInstr::Le,
+
+            BinaryOp::EqualEqual => BinaryInstr::Eq,
+            BinaryOp::BangEqual => BinaryInstr::Ne,
+        };
+        self.chunk.push_instr(Instruction::Bin(binary))
+    }
+
+    fn tuple(&mut self, exprs: Vec<Expr>) -> CompileResult<()> {
+        let len = exprs.len() as u8;
+        for expr in exprs {
+            self.compile_expr(expr)?
+        }
+        self.chunk.push_instr(Instruction::Tuple { len })
+    }
+
+    fn access(&mut self, table: Expr, field: Expr) -> CompileResult<()> {
+        self.compile_expr(table)?;
+        let access_instr = match field {
+            Expr::Literal(lit) => match lit {
+                Literal::Str(string) => {
+                    let index = self.chunk.add_constant(string.into())?;
+                    Instruction::GetFieldImm { index }
+                }
+                _ => {
+                    self.literal(lit)?;
+                    Instruction::GetField
+                }
+            },
+            expr => {
+                self.compile_expr(expr)?;
                 Instruction::GetField
             }
-        },
-        expr => {
-            compile_impl(expr, chunk)?;
-            Instruction::GetField
-        }
-    };
-    chunk.push_instr(access_instr)
-}
+        };
+        self.chunk.push_instr(access_instr)
+    }
 
-fn set(variable: Expr, value: Expr, chunk: &mut Chunk) -> CompileResult<()> {
-    // TODO: pattern matching for tuple expressions
-    
-    match variable {
-        Expr::Identifier(name) => {
-            let index = chunk.add_constant(name.clone().into())?;   
-            compile_impl(value, chunk)?;
-            if let Some((index, local)) = chunk.resolve_local(name.as_str()) {
-                let index = index as u16;
-                if local.in_function() {
-                    chunk.push_instr(Instruction::SetFnLocal { index })
+    fn set(&mut self, variable: Expr, value: Expr) -> CompileResult<()> {
+        // TODO: pattern matching for tuple expressions
+
+        match variable {
+            Expr::Identifier(name) => {
+                let index = self.chunk.add_constant(name.clone().into())?;
+                self.compile_expr(value)?;
+                if let Some((index, local)) = self.resolve_local(name.as_str()) {
+                    let index = index as u16;
+                    if local.is_in_function() {
+                        self.chunk.push_instr(Instruction::SetFnLocal { index })
+                    } else {
+                        self.chunk.push_instr(Instruction::SetLocal { index })
+                    }
                 } else {
-                    chunk.push_instr(Instruction::SetLocal { index })
+                    self.chunk.push_instr(Instruction::SetGlobal { index })
                 }
-            } else {
-                chunk.push_instr(Instruction::SetGlobal { index })
             }
+            Expr::Access { table, field } => {
+                self.compile_expr(value)?;
+                self.compile_expr(*field)?;
+                self.compile_expr(*table)?;
+                self.chunk.push_instr(Instruction::SetField)
+            }
+            _ => Err(CompileError::InvalidAssignmentTarget(variable)),
         }
-        Expr::Access { table, field } => {
-            compile_impl(value, chunk)?;
-            compile_impl(*field, chunk)?;
-            compile_impl(*table, chunk)?;
-            chunk.push_instr(Instruction::SetField)
+    }
+
+    fn table_init(&mut self, keys: Option<Vec<Expr>>, values: Vec<Expr>) -> CompileResult<()> {
+        let len = values.len();
+        let has_keys = match keys {
+            Some(keys) => {
+                for (k, v) in keys.into_iter().zip(values.into_iter()) {
+                    self.compile_expr(k)?;
+                    self.compile_expr(v)?;
+                }
+                true
+            }
+            None => {
+                for value in values.into_iter().rev() {
+                    self.compile_expr(value)?;
+                }
+                false
+            }
+        };
+        let len = len as u16;
+        self.chunk
+            .push_instr(Instruction::InitTable { len, has_keys })
+    }
+
+    fn function_def(&mut self, args: Vec<String>, body: Vec<Statement>) -> CompileResult<()> {
+        let patch_index = self.chunk.push_placeholder()?; // To prevent accidentally entering a function
+        let args_len = args.len() as u8;
+        let code_start = self.chunk.instructions().len() - 1;
+        self.enter_function();
+        for arg in args {
+            self.push_local(arg);
         }
-        _ => Err(CompileError::InvalidAssignmentTarget(variable)),
+        for stmt in body {
+            self.compile_stmt(stmt)?;
+        }
+        let pop_count = self.exit_function();
+        for _ in 0..pop_count {
+            self.chunk.push_instr(Instruction::Pop)?;
+        }
+        self.chunk.push_instr(Instruction::Return {
+            return_value: false,
+        })?;
+        // Patch after inserting pop instructions
+        let offset = self.chunk.instructions().len() - patch_index;
+        self.chunk
+            .patch_placeholder(patch_index, offset as i8, JumpCondition::None)?;
+        self.chunk.push_instr(Instruction::FuncDef {
+            args_len,
+            code_start,
+        })
+    }
+
+    fn call(&mut self, func: Expr, args: Vec<Expr>) -> CompileResult<()> {
+        for arg in args {
+            self.compile_expr(arg)?;
+        }
+        self.compile_expr(func)?;
+        self.chunk.push_instr(Instruction::Call)
     }
 }
 
-fn table_init(keys: Option<Vec<Expr>>, values: Vec<Expr>, chunk: &mut Chunk) -> CompileResult<()> {
-    let len = values.len();
-    let has_keys = match keys {
-        Some(keys) => {
-            for (k, v) in keys.into_iter().zip(values.into_iter()) {
-                compile_impl(k, chunk)?;
-                compile_impl(v, chunk)?;
-            }
-            true
+/**
+ * Locals and scoping
+ */
+impl Compiler {
+    pub fn resolve_local(&self, name: &str) -> Option<(usize, Local)> {
+        self.locals
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(i, l)| match l.name == name {
+                true => {
+                    if l.is_in_function() {
+                        self.resolve_fn_local(name)
+                    } else {
+                        Some((i, l.clone()))
+                    }
+                }
+                false => None,
+            })
+    }
+
+    fn resolve_fn_local(&self, name: &str) -> Option<(usize, Local)> {
+        self.locals
+            .iter()
+            .filter(|l| l.depth >= *self.closure_depths.last().unwrap())
+            .enumerate()
+            .find_map(|(i, l)| match l.name == name {
+                true => Some((i, l.clone())),
+                false => None,
+            })
+    }
+
+    fn push_local(&mut self, name: String) {
+        self.locals.push(Local {
+            name,
+            depth: self.depth,
+            closure: match self.closure_depths.len() {
+                0 => None,
+                i => Some(i as u8 - 1),
+            },
+        })
+    }
+
+    fn scope_incr(&mut self) {
+        self.depth += 1
+    }
+
+    fn enter_function(&mut self) {
+        self.scope_incr();
+        self.closure_depths.push(self.depth)
+    }
+
+    fn scope_decr(&mut self) -> usize {
+        self.depth -= 1;
+        let mut pop_count = 0;
+        while self.locals.last().is_some() && self.locals.last().unwrap().depth > self.depth {
+            self.locals.pop().unwrap();
+            pop_count += 1;
         }
-        None => {
-            for value in values.into_iter().rev() {
-                compile_impl(value, chunk)?;
-            }
-            false
-        }
-    };
-    let len = len as u16;
-    chunk.push_instr(Instruction::InitTable { len, has_keys })
+        pop_count
+    }
+
+    fn exit_function(&mut self) -> usize {
+        self.closure_depths.pop().unwrap();
+        self.scope_decr()
+    }
 }
 
-fn function_def(args: Vec<String>, body: Vec<Statement>, chunk: &mut Chunk) -> CompileResult<()> {
-    let patch_index = chunk.push_placeholder()?;  // To prevent accidentally entering a function
-    let args_len = args.len() as u8;
-    let code_start = chunk.instructions().len() - 1;
-    chunk.enter_function();
-    for arg in args {
-        chunk.push_local(arg);
+impl Local {
+    pub fn is_in_function(&self) -> bool {
+        self.closure.is_some()
     }
-    for stmt in body {
-        compile_stmt(stmt, chunk)?;
-    }
-    let pop_count = chunk.exit_function();
-    for _ in 0..pop_count {
-        chunk.push_instr(Instruction::Pop)?;
-    }
-    chunk.push_instr(Instruction::Return { return_value: false })?;
-    // Patch after inserting pop instructions
-    let offset = chunk.instructions().len() - patch_index;
-    chunk.patch_placeholder(patch_index, offset as i8, JumpCondition::None)?;
-    chunk.push_instr(Instruction::FuncDef { args_len, code_start })
-} 
-
-fn call(func: Expr, args: Vec<Expr>, chunk: &mut Chunk) -> CompileResult<()> {
-    for arg in args {
-        compile_expr(arg, chunk)?;
-    }
-    compile_expr(func, chunk)?;
-    chunk.push_instr(Instruction::Call)
 }

@@ -9,4 +9,6 @@ pub enum RuntimeError {
     EmptyStack,
     UndefinedVariable { name: String },
     UnsupportedBinary { value: Value, op: BinaryInstr },
+    IOError,
+    InvalidFormat,
 }

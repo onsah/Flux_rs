@@ -9,10 +9,7 @@ pub struct Frame {
 
 impl Frame {
     pub fn new(pc: usize, stack_top: usize) -> Self {
-        Frame {
-            pc,
-            stack_top
-        }
+        Frame { pc, stack_top }
     }
 
     pub fn stack_top(&self) -> usize {

@@ -1,11 +1,11 @@
+use crate::vm::{RuntimeError, RuntimeResult};
+pub use function::{Function, NativeFunction};
 use std::borrow::Borrow;
 use std::cell::RefCell;
-use std::hash::{Hash, Hasher};
 use std::fmt::{self, Display, Formatter};
+use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 pub use table::Table;
-pub use function::Function;
-use crate::vm::{RuntimeResult, RuntimeError};
 
 mod function;
 mod table;
@@ -17,6 +17,7 @@ pub enum Value {
     Int(i32),
     Number(f64),
     Str(Rc<String>),
+    Embedded(&'static str),
     Table(Rc<RefCell<Table>>),
     Tuple(Vec<Value>),
     Function(Function),
@@ -24,10 +25,28 @@ pub enum Value {
 }
 
 impl Value {
+    pub fn new_str(string: impl Into<String>) -> Self {
+        Value::Str(Rc::new(string.into()))
+    }
+
     pub fn as_str(&self) -> RuntimeResult<&str> {
         match self {
             Value::Str(rc) => Ok(rc.as_ref()),
-            _ => Err(RuntimeError::TypeError)
+            _ => Err(RuntimeError::TypeError),
+        }
+    }
+
+    pub fn convert_int(&self) -> Option<i32> {
+        match self {
+            Value::Int(i) => Some(*i),
+            Value::Number(n) => {
+                if n.fract() == 0.0 {
+                    Some(n.round() as i32)
+                } else {
+                    None
+                }
+            } 
+            _ => None,
         }
     }
 
@@ -64,9 +83,11 @@ impl Hash for Value {
             }
             Value::Str(s) => {
                 5.hash(state);
-                // Since literals are unique
-                let adress = s.as_ptr();
-                adress.hash(state);
+                (*s.as_str()).hash(state);
+            }
+            Value::Embedded(string) => {
+                5.hash(state);
+                (*string).hash(state)
             }
             Value::Table(t) => {
                 6.hash(state);
@@ -102,29 +123,35 @@ impl Display for Value {
             Value::Str(s) => {
                 let s: &String = s.borrow();
                 write!(f, "{}", s)
-            },
+            }
             Value::Table(t) => {
                 let table = t.as_ref().borrow();
+                writeln!(f, "{{")?;
                 for (k, v) in table.pairs() {
-                    writeln!(f, "{}: {}", k, v)?;
+                    writeln!(f, "\t{}: {}", k, v)?;
                 }
+                writeln!(f, "}}")?;
                 Ok(())
             }
             Value::Tuple(values) => {
                 write!(f, "(")?;
                 write!(f, "{}", values[0])?;
                 for value in values.iter().skip(1) {
-                    write!(f, ", {}", value)?;    
+                    write!(f, ", {}", value)?;
                 }
                 write!(f, ")")?;
                 Ok(())
             }
             Value::Function(function) => {
-                write!(f, "fn({} args)", function.args_len())
-            }
-            Value::Unit => {
-                write!(f, "()")
-            }
+                let is_native = if function.is_native() {
+                    "native "
+                } else {
+                    ""
+                };
+                write!(f, "{}fn({} args)", is_native, function.args_len())
+            },
+            Value::Unit => write!(f, "()"),
+            Value::Embedded(string) => write!(f, "{}", string),
         }
     }
 }

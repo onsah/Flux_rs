@@ -1,21 +1,25 @@
 mod error;
 mod frame;
+mod natives;
+#[cfg(test)]
+mod tests;
 mod value;
 
-use std::rc::Rc;
-use std::cell::RefCell;
 use crate::compiler::{BinaryInstr, Chunk, Instruction, UnaryInstr};
 pub use error::RuntimeError;
 use frame::Frame;
+use std::cell::RefCell;
 use std::collections::HashMap;
-pub use value::{Value, Table, Function};
+use std::rc::Rc;
+pub use value::{Function, Table, Value};
+pub use natives::PREDEFINED_CONSTANTS;
 
 pub type RuntimeResult<T> = Result<T, RuntimeError>;
 
 pub struct Vm {
     frames: Vec<Frame>,
     stack: Vec<Value>,
-    globals: HashMap<String, Value>,
+    globals: HashMap<Value, Value>,
     current_chunk: Option<Chunk>,
 }
 
@@ -24,8 +28,10 @@ impl Vm {
         Vm {
             frames: Vec::new(),
             stack: Vec::new(),
-            globals: HashMap::new(),
             current_chunk: None,
+            globals: PREDEFINED_CONSTANTS.iter()
+                .map(|(s, f)| (Value::Embedded(s), f.clone()))
+                .collect(),
         }
     }
 
@@ -68,21 +74,25 @@ impl Vm {
                     self.stack.push(value);
                     self.frames.pop().unwrap();
                     if self.frames.is_empty() {
-                        return self.pop_stack()
+                        return self.pop_stack();
                     }
-                },
+                }
                 Instruction::Bin(bin) => self.binary(bin)?,
                 Instruction::Unary(unary) => self.unary(unary)?,
                 Instruction::GetGlobal { index } => {
-                    let name = self.current_chunk().constants()[index as usize].as_str()?;
+                    let name = &self.current_chunk().constants()[index as usize];
                     match self.globals.get(name) {
                         Some(value) => self.stack.push(value.clone()),
-                        None => return Err(RuntimeError::UndefinedVariable { name: name.to_string() }),
+                        None => {
+                            return Err(RuntimeError::UndefinedVariable {
+                                name: name.to_string(),
+                            })
+                        }
                     }
                 }
                 Instruction::SetGlobal { index } => {
-                    let name = self.current_chunk().constants()[index as usize].as_str()?.to_string();
-                    let value = self.stack.last().unwrap().clone();
+                    let name = self.current_chunk().constants()[index as usize].clone();
+                    let value = self.stack.pop().unwrap().clone();
                     self.globals.insert(name, value);
                 }
                 Instruction::GetLocal { index } => {
@@ -97,7 +107,7 @@ impl Vm {
                 Instruction::JumpIf { offset, when_true } => {
                     let value = self.pop_stack()?;
                     if value.to_bool() == when_true {
-                         self.jump(offset)?;
+                        self.jump(offset)?;
                     }
                 }
                 Instruction::InitTable { len, has_keys } => self.init_table(len, has_keys)?,
@@ -128,17 +138,16 @@ impl Vm {
                         self.stack[index as usize] = self.pop_stack()?;
                     }
                 }
-                Instruction::FuncDef { args_len, code_start } => {
-                    self.stack.push(Value::Function(Function::new(args_len, code_start)))
-                }
+                Instruction::FuncDef {
+                    args_len,
+                    code_start,
+                } => self
+                    .stack
+                    .push(Value::Function(Function::new_user(args_len, code_start))),
                 Instruction::Call => {
                     let function = self.pop_stack()?;
                     match function {
-                        Value::Function(function) => {
-                            let pc = function.code_start();
-                            let stack_top = self.stack.len() - function.args_len() as usize;
-                            self.frames.push(Frame { pc, stack_top });
-                        },
+                        Value::Function(function) => self.call(function)?,
                         _ => return Err(RuntimeError::TypeError),
                     }
                 }
@@ -146,7 +155,7 @@ impl Vm {
             }
             let f = self.current_frame_mut()?;
             f.pc += 1;
-            //self.print_stack()
+            // self.print_stack()
         }
     }
 
@@ -159,8 +168,8 @@ impl Vm {
                 let value = table.get(&key).clone();
                 self.stack.push(value);
                 Ok(())
-            },
-            _ => Err(RuntimeError::TypeError)
+            }
+            _ => Err(RuntimeError::TypeError),
         }
     }
 
@@ -173,8 +182,8 @@ impl Vm {
                 let value = table.get(&key).clone();
                 self.stack.push(value);
                 Ok(())
-            },
-            _ => Err(RuntimeError::TypeError)
+            }
+            _ => Err(RuntimeError::TypeError),
         }
     }
 
@@ -187,8 +196,8 @@ impl Vm {
                 let mut table = rc.borrow_mut();
                 table.set(key, value);
                 Ok(())
-            },
-            _ => Err(RuntimeError::TypeError)
+            }
+            _ => Err(RuntimeError::TypeError),
         }
     }
 
@@ -201,8 +210,8 @@ impl Vm {
                 let mut table = rc.borrow_mut();
                 table.set(key.clone(), value);
                 Ok(())
-            },
-            _ => Err(RuntimeError::TypeError)
+            }
+            _ => Err(RuntimeError::TypeError),
         }
     }
 
@@ -216,7 +225,7 @@ impl Vm {
                     table.set(key, value)
                 }
                 table
-            },
+            }
             false => {
                 let mut values = Vec::new();
                 for i in 0..len {
@@ -235,6 +244,24 @@ impl Vm {
             f.pc += (offset - 1) as usize
         } else {
             f.pc -= (-offset + 1) as usize
+        }
+        Ok(())
+    }
+
+    fn call(&mut self, function: Function) -> RuntimeResult<()> {
+        match function {
+            Function::User(function) => {
+                let pc = function.code_start();
+                let stack_top = self.stack.len() - function.args_len() as usize;
+                self.frames.push(Frame { pc, stack_top });
+            },
+            Function::Native(native_fn) => {
+                let mut args = Vec::new();
+                for _ in 0..native_fn.args_len() {
+                    args.push(self.pop_stack()?);
+                }
+                self.stack.push((native_fn.function)(args)?)
+            }
         }
         Ok(())
     }
@@ -318,8 +345,8 @@ impl Vm {
 
     fn next_instr(&mut self) -> RuntimeResult<Instruction> {
         let f = self.current_frame()?;
-        // println!("pc: {}", f.pc);
         let instr = self.current_chunk().instructions()[f.pc];
+        // println!("pc: {}, instr: {:?}", f.pc, instr);
         Ok(instr)
     }
 
@@ -357,7 +384,7 @@ impl Vm {
     fn print_stack(&self) {
         println!("**********STACK LEN: {}**********", self.stack.len());
         for value in self.stack.iter() {
-            println!("{:?}", value)
+            println!("{}", value)
         }
         println!("**********STACK END**********");
     }

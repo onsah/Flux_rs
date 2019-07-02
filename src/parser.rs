@@ -48,17 +48,19 @@ where
         } else if let Ok(_) = self.match_token(TokenType::If) {
             self.if_stmt()
         } else if let Ok(_) = self.match_token(TokenType::Do) {
-            let stmt = self.block_stmt().map(|v| Statement::Block(v))?;
+            let stmt = Statement::Block(self.block_stmt()?);
             self.match_token(TokenType::End)?;
             Ok(stmt)
         } else if let Ok(_) = self.match_token(TokenType::While) {
             self.while_stmt()
-        } else if let Ok(_) = self.match_token(TokenType::Print) {
+        } /* else if let Ok(_) = self.match_token(TokenType::Print) {
             self.print_stmt()
-        } else if let Ok(_) = self.match_token(TokenType::Return) {
+        } */ else if let Ok(_) = self.match_token(TokenType::Return) {
             self.return_stmt()
         } else {
-            self.expr_stmt()
+            let expr = self.expr_stmt()?;
+            let _ = self.match_token(TokenType::Semicolon);
+            Ok(expr)
         }
     }
 
@@ -67,6 +69,7 @@ where
         let name = token.text();
         self.match_token(TokenType::Equal)?;
         let value = self.expression()?;
+        let _ = self.match_token(TokenType::Semicolon).is_ok();
         Ok(Statement::Let {
             name: name.to_string(),
             value,
@@ -152,6 +155,7 @@ where
         let left = self.comparasion()?;
         if let Ok(_) = self.match_token(TokenType::Equal) {
             let right = self.comparasion()?;
+            let _ = self.match_token(TokenType::Semicolon);
             Ok(Expr::Set {
                 variable: Box::new(left),
                 value: Box::new(right),
@@ -377,13 +381,12 @@ where
                 let name = self.match_token(TokenType::Identifier)?;
                 args.push(name.extract_text());
             }
+        } else {
+            self.match_token(TokenType::RightParen)?;
         }
         let body = self.block_stmt()?;
         self.match_token(TokenType::End)?;
-        Ok(Expr::Function {
-            args,
-            body
-        })
+        Ok(Expr::Function { args, body })
     }
 }
 
@@ -527,32 +530,38 @@ mod tests {
         let source = "foo(5 + 2, bar[\"foo\"])";
         let mut parser = Parser::new(source).unwrap();
         let parsed = parser.expression().unwrap();
-        assert_eq!(parsed, Expr::Call {
-            func: Box::new(Expr::Identifier("foo".to_string())),
-            args: vec![
-                Expr::Binary {
-                    left: Box::new(Expr::Literal(Literal::Number(5.0))),
-                    op: BinaryOp::Plus,
-                    right: Box::new(Expr::Literal(Literal::Number(2.0))),
-                },
-                Expr::Access {
-                    table: Box::new(Expr::Identifier("bar".to_string())),
-                    field: Box::new(Expr::Literal(Literal::Str("foo".to_string()))),
-                }
-            ]
-        });
+        assert_eq!(
+            parsed,
+            Expr::Call {
+                func: Box::new(Expr::Identifier("foo".to_string())),
+                args: vec![
+                    Expr::Binary {
+                        left: Box::new(Expr::Literal(Literal::Number(5.0))),
+                        op: BinaryOp::Plus,
+                        right: Box::new(Expr::Literal(Literal::Number(2.0))),
+                    },
+                    Expr::Access {
+                        table: Box::new(Expr::Identifier("bar".to_string())),
+                        field: Box::new(Expr::Literal(Literal::Str("foo".to_string()))),
+                    }
+                ]
+            }
+        );
         let source = "bar[\"foo\"].hello()";
         let mut parser = Parser::new(source).unwrap();
         let parsed = parser.expression().unwrap();
-        assert_eq!(parsed, Expr::Call {
-            func: Box::new(Expr::Access {
-                table: Box::new(Expr::Access {
-                    table: Box::new(Expr::Identifier("bar".to_string())),
-                    field: Box::new(Expr::Literal(Literal::Str("foo".to_string()))),
+        assert_eq!(
+            parsed,
+            Expr::Call {
+                func: Box::new(Expr::Access {
+                    table: Box::new(Expr::Access {
+                        table: Box::new(Expr::Identifier("bar".to_string())),
+                        field: Box::new(Expr::Literal(Literal::Str("foo".to_string()))),
+                    }),
+                    field: Box::new(Expr::Literal(Literal::Str("hello".to_string())))
                 }),
-                field: Box::new(Expr::Literal(Literal::Str("hello".to_string())))
-            }),
-            args: vec![]
-        })
+                args: vec![]
+            }
+        )
     }
 }

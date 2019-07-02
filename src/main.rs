@@ -9,7 +9,7 @@ mod parser;
 mod scanner;
 mod vm;
 
-use compiler::{compile, Chunk};
+use compiler::{Chunk, Compiler};
 use parser::Parser;
 use std::fs::File;
 use std::io::{Read, Write};
@@ -27,7 +27,7 @@ fn main() {
         let mut parser = Parser::new(&buffer).unwrap();
         let ast = parser.parse().unwrap();
         //println!("AST:\n {:#?}", ast);
-        let chunk = compile(ast).unwrap();
+        let chunk = Compiler::compile(ast).unwrap();
         println!("Chunk: {:#?}\n", chunk);
         print_instructions(&chunk);
         let mut vm = Vm::new();
@@ -38,6 +38,7 @@ fn main() {
 fn repl() {
     let stdin = std::io::stdin();
     let mut line = String::new();
+    let mut vm = Vm::new();
     loop {
         print!("> ");
         std::io::stdout().flush().unwrap();
@@ -45,11 +46,10 @@ fn repl() {
         let mut parser = Parser::new(&line).unwrap();
         let ast = parser.parse().unwrap();
         println!("AST:\n {:#?}", ast);
-        /* let chunk = compile(ast).unwrap();
-        println!("Chunk: {:?}\n", chunk);
-        let mut vm = Vm::new();
-        println!("{:?}", vm.run(chunk).unwrap());
-        */
+        let chunk = Compiler::compile(ast).unwrap();
+        // println!("Chunk: {:?}\n", chunk);
+        // println!("{}", vm.run(chunk).unwrap());
+        vm.run(chunk).unwrap();
         line.clear();
     }
 }

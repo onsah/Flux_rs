@@ -33,18 +33,20 @@ impl Table {
     }
 
     pub fn get(&self, key: &Value) -> &Value {
-        if let &Value::Int(i) = key {
+        if let Some(i) = key.convert_int() {
             if i >= 0 {
                 let i = i as usize;
                 if self.array.len() > i {
-                    return &self.array[i].1
+                    return &self.array[i].1;
                 }
             }
         }
         self.table.get(key).unwrap_or(&Self::NIL)
     }
 
-    pub fn pairs(&self) -> impl Iterator<Item=(&Value, &Value)> {
-        self.table.iter().chain(self.array.iter().map(|(v1, v2)| (v1, v2)))
+    pub fn pairs(&self) -> impl Iterator<Item = (&Value, &Value)> {
+        self.table
+            .iter()
+            .chain(self.array.iter().map(|(v1, v2)| (v1, v2)))
     }
 }

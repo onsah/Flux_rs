@@ -1,5 +1,5 @@
-use crate::scanner::TokenType;
 use super::Statement;
+use crate::scanner::TokenType;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
@@ -35,7 +35,7 @@ pub enum Expr {
     Call {
         func: Box<Expr>,
         args: Vec<Expr>,
-    }
+    },
 }
 
 #[derive(Debug, Clone, PartialEq)]

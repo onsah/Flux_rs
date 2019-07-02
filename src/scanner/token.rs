@@ -83,7 +83,7 @@ lazy_static! {
         "then" => TokenType::Then,
         "do" => TokenType::Do,
         "end" => TokenType::End,
-        "print" => TokenType::Print,
+        // "print" => TokenType::Print,
     };
 }
 

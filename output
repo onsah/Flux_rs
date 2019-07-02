@@ -1,29 +1,230 @@
-0: Constant { index: 0 }
-1: Constant { index: 1 }
-2: Constant { index: 2 }
-3: GetLocal { index: 0 }
-4: Constant { index: 3 }
-5: Bin(Lt)
-6: JumpIf { when_true: false, offset: 14 }
-7: GetLocal { index: 1 }
-8: GetLocal { index: 2 }
-9: SetLocal { index: 1 }
-10: GetLocal { index: 2 }
-11: GetLocal { index: 3 }
-12: Bin(Add)
-13: SetLocal { index: 2 }
-14: GetLocal { index: 0 }
-15: Constant { index: 4 }
-16: Bin(Add)
-17: SetLocal { index: 0 }
-18: Pop
-19: Jump { offset: -16 }
+Chunk: Chunk {
+    instructions: [
+        Constant {
+            index: 3
+        },
+        Constant {
+            index: 4
+        },
+        InitTable {
+            len: 2,
+            has_keys: false
+        },
+        Jump {
+            offset: 34
+        },
+        GetFnLocal {
+            index: 0
+        },
+        Constant {
+            index: 5
+        },
+        Bin(
+            Le
+        ),
+        JumpIf {
+            when_true: false,
+            offset: 4
+        },
+        Constant {
+            index: 6
+        },
+        Return {
+            return_value: true
+        },
+        Jump {
+            offset: 21
+        },
+        GetLocal {
+            index: 0
+        },
+        GetFnLocal {
+            index: 0
+        },
+        GetField,
+        Nil,
+        Bin(
+            Eq
+        ),
+        JumpIf {
+            when_true: false,
+            offset: 15
+        },
+        GetFnLocal {
+            index: 0
+        },
+        Constant {
+            index: 7
+        },
+        Bin(
+            Sub
+        ),
+        GetLocal {
+            index: 1
+        },
+        Call,
+        GetFnLocal {
+            index: 0
+        },
+        Constant {
+            index: 8
+        },
+        Bin(
+            Sub
+        ),
+        GetLocal {
+            index: 1
+        },
+        Call,
+        Bin(
+            Add
+        ),
+        GetFnLocal {
+            index: 0
+        },
+        GetLocal {
+            index: 0
+        },
+        SetField,
+        GetLocal {
+            index: 0
+        },
+        GetFnLocal {
+            index: 0
+        },
+        GetField,
+        Return {
+            return_value: true
+        },
+        Pop,
+        Return {
+            return_value: false
+        },
+        FuncDef {
+            args_len: 1,
+            code_start: 3
+        },
+        Constant {
+            index: 9
+        },
+        GetGlobal {
+            index: 0
+        },
+        Call,
+        Pop,
+        GetGlobal {
+            index: 1
+        },
+        Call,
+        GetGlobal {
+            index: 2
+        },
+        Call,
+        GetLocal {
+            index: 2
+        },
+        GetLocal {
+            index: 1
+        },
+        Call,
+        GetGlobal {
+            index: 0
+        },
+        Call,
+        Pop,
+        Return {
+            return_value: false
+        }
+    ],
+    constants: [
+        Str(
+            "print"
+        ),
+        Str(
+            "readline"
+        ),
+        Str(
+            "number"
+        ),
+        Int(
+            1
+        ),
+        Int(
+            0
+        ),
+        Int(
+            0
+        ),
+        Int(
+            0
+        ),
+        Int(
+            1
+        ),
+        Int(
+            2
+        ),
+        Str(
+            "enter a number: "
+        )
+    ],
+    locals: [],
+    depth: 0,
+    function_depth: []
+}
+
+0: Constant { index: 3 }
+1: Constant { index: 4 }
+2: InitTable { len: 2, has_keys: false }
+3: Jump { offset: 34 }
+4: GetFnLocal { index: 0 }
+5: Constant { index: 5 }
+6: Bin(Le)
+7: JumpIf { when_true: false, offset: 4 }
+8: Constant { index: 6 }
+9: Return { return_value: true }
+10: Jump { offset: 21 }
+11: GetLocal { index: 0 }
+12: GetFnLocal { index: 0 }
+13: GetField
+14: Nil
+15: Bin(Eq)
+16: JumpIf { when_true: false, offset: 15 }
+17: GetFnLocal { index: 0 }
+18: Constant { index: 7 }
+19: Bin(Sub)
 20: GetLocal { index: 1 }
-21: GetLocal { index: 2 }
-22: Tuple { len: 2 }
-23: Print
-24: Return
-Tuple([Int(1346269), Int(832040)])
-Int(
-    1346269
-)
+21: Call
+22: GetFnLocal { index: 0 }
+23: Constant { index: 8 }
+24: Bin(Sub)
+25: GetLocal { index: 1 }
+26: Call
+27: Bin(Add)
+28: GetFnLocal { index: 0 }
+29: GetLocal { index: 0 }
+30: SetField
+31: GetLocal { index: 0 }
+32: GetFnLocal { index: 0 }
+33: GetField
+34: Return { return_value: true }
+35: Pop
+36: Return { return_value: false }
+37: FuncDef { args_len: 1, code_start: 3 }
+38: Constant { index: 9 }
+39: GetGlobal { index: 0 }
+40: Call
+41: Pop
+42: GetGlobal { index: 1 }
+43: Call
+44: GetGlobal { index: 2 }
+45: Call
+46: GetLocal { index: 2 }
+47: GetLocal { index: 1 }
+48: Call
+49: GetGlobal { index: 0 }
+50: Call
+51: Pop
+52: Return { return_value: false }
+enter a number:  
+8 

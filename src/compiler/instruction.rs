@@ -32,8 +32,6 @@ pub enum Instruction {
     GetLocal {
         index: u16,
     },
-    /*pop the table then push the value of the key in the constant pool */
-    // TODO: make this GetFieldConst
     GetFieldImm {
         index: u8,
     },
@@ -42,8 +40,6 @@ pub enum Instruction {
      */
     /*pop the key and table then push the value from the table */
     GetField,
-    /*pop the value then pop the table object then get the field name from pool then set the value to table*/
-    // TODO: make this SetFieldConst
     SetFieldImm {
         index: u8,
     },
@@ -57,7 +53,9 @@ pub enum Instruction {
     /*Simply pop the top value from stack */
     Pop,
     /*Pop the value and return */
-    Return { return_value: bool } ,
+    Return {
+        return_value: bool,
+    },
     /*Pop len values and push a tuple */
     Tuple {
         len: u8,
