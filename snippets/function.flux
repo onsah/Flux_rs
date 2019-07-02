@@ -9,4 +9,4 @@ let fib = fn(n)
 end
 print("enter a number: ")
 let i = number(readline());
-print(fib(i))
+println(fib(i))

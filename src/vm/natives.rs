@@ -1,11 +1,12 @@
-use std::io;
+use std::io::{self, Write};
 use std::rc::Rc;
 use super::Value;
 use super::value::{Function, NativeFunction};
 use crate::vm::RuntimeError;
 
-pub const PREDEFINED_CONSTANTS: [(&'static str, Value); 4] = [
+pub const PREDEFINED_CONSTANTS: [(&'static str, Value); 5] = [
     ("print", PRINT),
+    ("println", PRINTLN),
     ("readline", READLINE),
     ("int", INT),
     ("number", NUMBER)
@@ -22,6 +23,21 @@ macro_rules! define_native {
 
 define_native! {
     PRINT,
+    |args| {
+        print!("{}", args[0]);
+        for arg in &args[1..] {
+            print!(" {}", arg);
+        }
+        match io::stdout().flush() {
+            Ok(_) => Ok(Value::Unit),
+            _ => Err(RuntimeError::IOError),
+        }
+    },
+    1
+}
+
+define_native! {
+    PRINTLN,
     |args| {
         for arg in args {
             print!("{} ", arg);

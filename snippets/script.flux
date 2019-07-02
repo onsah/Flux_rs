@@ -1,1 +1,2 @@
-print(5.0 == 5)
+print("hello ")
+println("world")
