@@ -15,7 +15,7 @@ use std::fs::File;
 use std::io::{Read, Write};
 use vm::Vm;
 
-fn main() {
+fn main() -> Result<(), error::FluxError> {
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 2 {
         repl()
@@ -24,18 +24,19 @@ fn main() {
         let mut file = File::open(path).unwrap();
         let mut buffer = String::new();
         file.read_to_string(&mut buffer).unwrap();
-        let mut parser = Parser::new(&buffer).unwrap();
+        let mut parser = Parser::new(&buffer)?;
         let ast = parser.parse().unwrap();
         //println!("AST:\n {:#?}", ast);
-        let chunk = Compiler::compile(ast).unwrap();
+        let chunk = Compiler::compile(ast)?;
         println!("Chunk: {:#?}\n", chunk);
         print_instructions(&chunk);
         let mut vm = Vm::new();
-        vm.run(chunk).unwrap();
+        vm.run(chunk)?;
+        Ok(())
     }
 }
 
-fn repl() {
+fn repl() -> Result<(), error::FluxError> {
     let stdin = std::io::stdin();
     let mut line = String::new();
     let mut vm = Vm::new();
@@ -43,13 +44,16 @@ fn repl() {
         print!("> ");
         std::io::stdout().flush().unwrap();
         stdin.read_line(&mut line).unwrap();
-        let mut parser = Parser::new(&line).unwrap();
+        let mut parser = Parser::new(&line)?;
         let ast = parser.parse().unwrap();
-        println!("AST:\n {:#?}", ast);
-        let chunk = Compiler::compile(ast).unwrap();
+        // println!("AST:\n {:#?}", ast);
+        let chunk = Compiler::compile(ast)?;
         // println!("Chunk: {:?}\n", chunk);
         // println!("{}", vm.run(chunk).unwrap());
-        vm.run(chunk).unwrap();
+        match vm.run(chunk) {
+            Ok(_) => (),
+            Err(error) => println!("Error: {:?}", error),
+        }
         line.clear();
     }
 }

@@ -1,7 +1,7 @@
 use crate::compiler::{BinaryInstr, Instruction, UnaryInstr};
 use crate::vm::Value;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum RuntimeError {
     TypeError,
     EmptyFrame,
@@ -11,4 +11,6 @@ pub enum RuntimeError {
     UnsupportedBinary { value: Value, op: BinaryInstr },
     IOError,
     InvalidFormat,
+    WrongNumberOfArgs { expected: u8, found: u8 },
+    DivideByZero
 }

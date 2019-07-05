@@ -5,13 +5,13 @@ mod natives;
 mod tests;
 mod value;
 
-use crate::compiler::{BinaryInstr, Chunk, Instruction, UnaryInstr};
+use crate::compiler::{BinaryInstr, Chunk, Instruction, UnaryInstr, FuncProto};
 pub use error::RuntimeError;
 use frame::Frame;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
-pub use value::{Function, Table, Value};
+pub use value::{Function, ArgsLen, Table, Value, UpValue};
 pub use natives::PREDEFINED_CONSTANTS;
 
 pub type RuntimeResult<T> = Result<T, RuntimeError>;
@@ -43,7 +43,7 @@ impl Vm {
 
     #[inline]
     fn init_call(&mut self) {
-        let frame = Frame::new(0, 0);
+        let frame = Frame::default();
         self.frames.push(frame)
     }
 
@@ -64,10 +64,34 @@ impl Vm {
                 }
                 Instruction::Return { return_value } => {
                     // println!("Call Stack:\n{:?}", self.frames);
-                    let value = match return_value {
+                    let mut value = match return_value {
                         true => self.pop_stack()?,
                         false => Value::Unit,
                     };
+                    match &mut value {
+                        Value::Function(function) => {
+                            if let Function::User(func) = function {
+                                let frame = self.current_frame().unwrap();
+                                for upval in func.upvalues_mut() {
+                                    let close = match upval {
+                                        UpValue::Open { index } => {
+                                            match frame.upvalues[*index as usize] {
+                                                UpValue::This { index } => Some(index),
+                                                _ => None,
+                                            }
+                                        },
+                                        _ => None,
+                                    };
+                                    if let Some(index) = close {
+                                        let index = frame.stack_top + index as usize;
+                                        let value = self.stack[index].clone();
+                                        *upval = UpValue::Closed(value);
+                                    }
+                                }
+                            }
+                        },
+                        _ => (),
+                    } 
                     while self.stack.len() > self.current_frame()?.stack_top() {
                         self.pop_stack()?;
                     }
@@ -95,10 +119,14 @@ impl Vm {
                     let value = self.stack.pop().unwrap().clone();
                     self.globals.insert(name, value);
                 }
-                Instruction::GetLocal { index } => {
+                Instruction::GetLocal { index, frame } => {
+                    let frame_index = if frame != 0 { self.frames.len() - frame as usize } else { 0 };
+                    let index = self.frames[frame_index].stack_top() + index as usize;
                     self.stack.push(self.stack[index as usize].clone());
                 }
-                Instruction::SetLocal { index } => {
+                Instruction::SetLocal { index, frame } => {
+                    let frame_index = if frame != 0 { self.frames.len() - frame as usize } else { 0 };
+                    let index = self.frames[frame_index].stack_top() + index as usize;
                     if self.stack.len() != index as usize {
                         self.stack[index as usize] = self.pop_stack()?;
                     }
@@ -127,34 +155,48 @@ impl Vm {
                     let tuple = Value::Tuple(values.into_iter().rev().collect());
                     self.stack.push(tuple)
                 }
-                Instruction::GetFnLocal { index } => {
-                    // Need to resolve dynamcally
-                    let index = self.current_frame()?.stack_top() + index as usize;
-                    self.stack.push(self.stack[index].clone());
-                }
-                Instruction::SetFnLocal { index } => {
-                    let index = self.current_frame()?.stack_top() + index as usize;
-                    if self.stack.len() != index as usize {
-                        self.stack[index as usize] = self.pop_stack()?;
-                    }
-                }
-                Instruction::FuncDef {
-                    args_len,
-                    code_start,
-                } => self
+                Instruction::FuncDef { proto_index } => {
+                    let FuncProto {
+                        code_start,
+                        args_len,
+                        upvalues
+                    } = &self.current_chunk().prototypes()[proto_index];
+                    self
                     .stack
-                    .push(Value::Function(Function::new_user(args_len, code_start))),
-                Instruction::Call => {
+                    .push(Value::Function(Function::new_user(*args_len, *code_start, upvalues)))
+                },
+                Instruction::Call { args_len } => {
                     let function = self.pop_stack()?;
                     match function {
-                        Value::Function(function) => self.call(function)?,
+                        Value::Function(function) => self.call(function, args_len)?,
                         _ => return Err(RuntimeError::TypeError),
+                    }
+                }
+                Instruction::GetUpval { index } => {
+                    let mut upval_index = index;
+                    for frame in self.frames.iter().rev() {
+                        let upvalue = &frame.upvalues[upval_index as usize];
+                        match upvalue {
+                            UpValue::Open { index } => {
+                                upval_index = *index;
+                            }
+                            UpValue::This { index } => {
+                                let value_index = frame.stack_top + *index as usize;
+                                self.stack.push(self.stack[value_index].clone());
+                                break;
+                            }
+                            UpValue::Closed(value) => {
+                                self.stack.push(value.clone());
+                                break;
+                            }
+                        }
                     }
                 }
                 _ => return Err(RuntimeError::UnsupportedInstruction(instr)),
             }
             let f = self.current_frame_mut()?;
             f.pc += 1;
+            // self.print_call_stack();
             // self.print_stack()
         }
     }
@@ -248,17 +290,41 @@ impl Vm {
         Ok(())
     }
 
-    fn call(&mut self, function: Function) -> RuntimeResult<()> {
+    fn call(&mut self, function: Function, pushed_args: u8) -> RuntimeResult<()> {
         match function {
             Function::User(function) => {
-                let pc = function.code_start();
-                let stack_top = self.stack.len() - function.args_len() as usize;
-                self.frames.push(Frame { pc, stack_top });
+                if pushed_args == function.args_len() {
+                    let pc = function.code_start();
+                    let stack_top = self.stack.len() - function.args_len() as usize;
+                    let upvalues = function.extract_upvalues();
+                    self.frames.push(Frame::new(pc, stack_top, upvalues));
+                } else {
+                    return Err(RuntimeError::WrongNumberOfArgs {
+                        expected: function.args_len(),
+                        found: pushed_args,
+                    });
+                }
             },
             Function::Native(native_fn) => {
                 let mut args = Vec::new();
-                for _ in 0..native_fn.args_len() {
-                    args.push(self.pop_stack()?);
+                match native_fn.args_len() {
+                    ArgsLen::Variadic => {
+                        for _ in 0..pushed_args {
+                            args.push(self.pop_stack()?);
+                        }
+                    }
+                    ArgsLen::Exact(n) => {
+                        if n == pushed_args {
+                            for _ in 0..pushed_args {
+                                args.push(self.pop_stack()?);
+                            }
+                        } else {
+                            return Err(RuntimeError::WrongNumberOfArgs {
+                                expected: n,
+                                found: pushed_args,
+                            });
+                        }
+                    }
                 }
                 self.stack.push((native_fn.function)(args)?)
             }
@@ -299,17 +365,28 @@ impl Vm {
                     BinaryInstr::Le => Value::Bool(a <= b as f64),
                     _ => unreachable!(),
                 }),
-                (Value::Int(a), Value::Int(b)) => Ok(match op {
-                    BinaryInstr::Add => Value::Int(a + b),
-                    BinaryInstr::Sub => Value::Int(a - b),
-                    BinaryInstr::Mul => Value::Int(a * b),
-                    BinaryInstr::Div => Value::Int(a / b),
-
-                    BinaryInstr::Gt => Value::Bool(a > b),
-                    BinaryInstr::Lt => Value::Bool(a < b),
-                    BinaryInstr::Ge => Value::Bool(a >= b),
-                    BinaryInstr::Le => Value::Bool(a <= b),
-                    _ => unreachable!(),
+                (Value::Int(a), Value::Int(b)) => Ok({
+                    if op.is_arithmetic() {
+                        match op {
+                            BinaryInstr::Add => Value::Int(a + b),
+                            BinaryInstr::Sub => Value::Int(a - b),
+                            BinaryInstr::Mul => Value::Int(a * b),
+                            BinaryInstr::Div => match b {
+                                0 => return Err(RuntimeError::DivideByZero),
+                                n if a % n == 0 => Value::Int(a / b),
+                                _ => Value::Number(a as f64 / b as f64),
+                            },
+                            _ => unreachable!(),
+                        }
+                    } else {
+                        match op {
+                            BinaryInstr::Gt => Value::Bool(a > b),
+                            BinaryInstr::Lt => Value::Bool(a < b),
+                            BinaryInstr::Ge => Value::Bool(a >= b),
+                            BinaryInstr::Le => Value::Bool(a <= b),
+                            _ => unreachable!(),
+                        }
+                    }
                 }),
                 (Value::Str(a), Value::Str(b)) => match op {
                     BinaryInstr::Add => {
@@ -350,9 +427,9 @@ impl Vm {
         Ok(instr)
     }
 
-    fn current_frame(&self) -> RuntimeResult<Frame> {
+    fn current_frame(&self) -> RuntimeResult<&Frame> {
         match self.frames.last() {
-            Some(frame) => Ok(*frame),
+            Some(frame) => Ok(frame),
             None => Err(RuntimeError::EmptyFrame),
         }
     }
@@ -378,6 +455,13 @@ impl Vm {
         match self.stack.pop() {
             Some(value) => Ok(value),
             None => Err(RuntimeError::EmptyStack),
+        }
+    }
+
+    fn print_call_stack(&self) {
+        println!("**********Call stack**********");
+        for frame in &self.frames {
+            println!("{:?}", frame);
         }
     }
 

@@ -1,10 +1,8 @@
-let i = 0
-let a = 0
-let b = 1
-while i < 30 then
-    let c = a
-    a = b
-    b = b + c
-    i = i + 1
+let foo = fn(x)
+    let bar = fn()
+        return x
+    end
+    let y = bar()
+    return y
 end
-print (a, b)
+println(foo(5))

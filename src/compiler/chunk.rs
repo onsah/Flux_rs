@@ -1,5 +1,6 @@
 use super::Instruction;
 use super::{CompileError, CompileResult};
+use super::UpValueDesc;
 use crate::vm::{Function, Value, PREDEFINED_CONSTANTS};
 use std::collections::HashSet;
 
@@ -7,16 +8,14 @@ use std::collections::HashSet;
 pub struct Chunk {
     instructions: Vec<Instruction>,
     constants: Vec<Value>,
-    locals: Vec<Local>,
-    depth: u8,
-    function_depth: Vec<u8>,
+    prototypes: Vec<FuncProto>,
 }
 
 #[derive(Clone, Debug)]
-pub struct Local {
-    name: String,
-    depth: u8,
-    function: Option<u8>,
+pub struct FuncProto {
+    pub code_start: usize,
+    pub args_len: u8,
+    pub upvalues: Vec<UpValueDesc>,
 }
 
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -35,9 +34,7 @@ impl Chunk {
             constants: PREDEFINED_CONSTANTS.iter()
                 .map(|(s, _)| Value::Embedded(s))
                 .collect(),
-            locals: Vec::new(),
-            depth: 0,
-            function_depth: Vec::new(),
+            prototypes: Vec::new(),
         }
     }
 
@@ -51,6 +48,7 @@ impl Chunk {
         }
     }
 
+    // Adds constant if not present
     pub fn add_constant(&mut self, constant: Value) -> CompileResult<u8> {
         let index = match &constant {
             Value::Str(string) => {
@@ -123,6 +121,19 @@ impl Chunk {
             }
             _ => Err(CompileError::WrongPatch(self.instructions[index])),
         }
+    }
+
+    pub fn push_proto(&mut self, code_start: usize, args_len: u8, upvalues: Vec<UpValueDesc>) -> usize {
+        self.prototypes.push(FuncProto {
+            code_start,
+            args_len,
+            upvalues
+        });
+        self.prototypes.len() - 1
+    }
+
+    pub fn prototypes(&self) -> &[FuncProto] {
+        self.prototypes.as_slice()
     }
 
     #[inline]

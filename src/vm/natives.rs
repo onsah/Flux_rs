@@ -1,7 +1,7 @@
 use std::io::{self, Write};
 use std::rc::Rc;
 use super::Value;
-use super::value::{Function, NativeFunction};
+use super::value::{Function, NativeFunction, ArgsLen};
 use crate::vm::RuntimeError;
 
 pub const PREDEFINED_CONSTANTS: [(&'static str, Value); 5] = [
@@ -24,28 +24,31 @@ macro_rules! define_native {
 define_native! {
     PRINT,
     |args| {
-        print!("{}", args[0]);
-        for arg in &args[1..] {
-            print!(" {}", arg);
+        let mut args_iter = args.into_iter().rev();
+        if let Some(arg) = args_iter.next() {
+            print!("{}", arg);
+            while let Some(arg) = args_iter.next() {
+                print!(" {}", arg);
+            }
         }
         match io::stdout().flush() {
             Ok(_) => Ok(Value::Unit),
             _ => Err(RuntimeError::IOError),
         }
     },
-    1
+    ArgsLen::Variadic
 }
 
 define_native! {
     PRINTLN,
     |args| {
-        for arg in args {
+        for arg in args.into_iter().rev() {
             print!("{} ", arg);
         }
         println!("");
         Ok(Value::Unit)
     },
-    1
+    ArgsLen::Variadic
 }
 
 define_native! {
@@ -60,7 +63,7 @@ define_native! {
             Err(_) => Err(RuntimeError::IOError),
         }
     },
-    0
+    ArgsLen::Exact(0)
 }
 
 define_native! {
@@ -84,7 +87,7 @@ define_native! {
             _ => Err(RuntimeError::TypeError),
         }
     },
-    1
+    ArgsLen::Exact(0)
 }
 
 define_native! {
@@ -108,5 +111,5 @@ define_native! {
             _ => Err(RuntimeError::TypeError),
         }
     },
-    1
+    ArgsLen::Exact(0)
 }

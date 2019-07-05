@@ -2,10 +2,10 @@ mod chunk;
 mod error;
 mod instruction;
 
-pub use self::chunk::{Chunk, JumpCondition};
 use crate::parser::{BinaryOp, Expr, Literal, Statement, UnaryOp};
 use crate::vm::Value;
-pub(self) use error::CompileError;
+pub use chunk::{Chunk, JumpCondition, FuncProto};
+pub use error::CompileError;
 pub use instruction::{BinaryInstr, Instruction, UnaryInstr};
 
 pub type CompileResult<T> = Result<T, CompileError>;
@@ -14,7 +14,7 @@ pub struct Compiler {
     chunk: Chunk,
     locals: Vec<Local>,
     depth: u8,
-    closure_depths: Vec<u8>,
+    closure_scopes: Vec<ClosureScope>,
 }
 
 #[derive(Clone, Debug)]
@@ -23,6 +23,19 @@ pub struct Local {
     depth: u8,
     // n means the function in compiler.closure_depths[n]
     closure: Option<u8>,
+}
+
+#[derive(Clone, Debug)]
+struct ClosureScope {
+    depth: u8,
+    local_start: usize,
+    upvalues: Vec<UpValueDesc>,
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct UpValueDesc {
+    pub index: u16,
+    pub is_this: bool,
 }
 
 /**
@@ -45,7 +58,7 @@ impl Compiler {
             chunk: Chunk::new(),
             locals: Vec::new(),
             depth: 0,
-            closure_depths: Vec::new(),
+            closure_scopes: Vec::new(),
         }
     }
 
@@ -196,19 +209,40 @@ impl Compiler {
     }
 
     fn ident(&mut self, name: String) -> CompileResult<()> {
-        if let Some((index, local)) = self.resolve_local(name.as_str()) {
-            let index = index as u16;
-            if local.is_in_function() {
-                self.chunk.push_instr(Instruction::GetFnLocal { index })
+        if let Some((index, frame)) = self.resolve_local(name.as_str()) {
+            let mut index = index as u16;
+            if frame > 1 {
+                // add upvalue to all enclosing
+                // Idea: add upvalue too all closures until to the function that variable has defined
+                // Each upvalue can reference at most one scope higher
+                let skip = self.closure_scopes.len() - frame as usize;
+                let mut closure_iter = self.closure_scopes.iter_mut().skip(skip);
+                {
+                    let closure = closure_iter.next().unwrap();
+                    closure.upvalues.push(UpValueDesc {
+                        index,
+                        is_this: true,
+                    });
+                }
+                for closure in closure_iter {
+                    closure.upvalues.push(UpValueDesc {
+                        index, 
+                        is_this: false,
+                    });
+                    index = closure.upvalues.len() as u16 - 1;
+                }
+                let closure = self.closure_scopes.last_mut().unwrap();
+                self.chunk.push_instr(Instruction::GetUpval { 
+                    index: closure.upvalues.len() as u16 - 1
+                })
             } else {
-                self.chunk.push_instr(Instruction::GetLocal { index })
+                self.chunk.push_instr(Instruction::GetLocal { index, frame })
             }
         } else {
-            if let Some(index) = self.chunk.has_string(name.as_str()) {
-                self.chunk.push_instr(Instruction::GetGlobal { index })
-            } else {
-                Err(CompileError::UndefinedVariable { name })
-            }
+            let index = self.chunk.add_constant(Value::new_str(name))?;
+            self.chunk.push_instr(Instruction::GetGlobal { index })
+            // TODO: make error if not repl
+            // Err(CompileError::UndefinedVariable { name })
         }
     }
 
@@ -277,13 +311,9 @@ impl Compiler {
             Expr::Identifier(name) => {
                 let index = self.chunk.add_constant(name.clone().into())?;
                 self.compile_expr(value)?;
-                if let Some((index, local)) = self.resolve_local(name.as_str()) {
+                if let Some((index, frame)) = self.resolve_local(name.as_str()) {
                     let index = index as u16;
-                    if local.is_in_function() {
-                        self.chunk.push_instr(Instruction::SetFnLocal { index })
-                    } else {
-                        self.chunk.push_instr(Instruction::SetLocal { index })
-                    }
+                    self.chunk.push_instr(Instruction::SetLocal { index, frame })
                 } else {
                     self.chunk.push_instr(Instruction::SetGlobal { index })
                 }
@@ -331,7 +361,7 @@ impl Compiler {
         for stmt in body {
             self.compile_stmt(stmt)?;
         }
-        let pop_count = self.exit_function();
+        let (pop_count, closure_scope) = self.exit_function();
         for _ in 0..pop_count {
             self.chunk.push_instr(Instruction::Pop)?;
         }
@@ -342,18 +372,19 @@ impl Compiler {
         let offset = self.chunk.instructions().len() - patch_index;
         self.chunk
             .patch_placeholder(patch_index, offset as i8, JumpCondition::None)?;
-        self.chunk.push_instr(Instruction::FuncDef {
-            args_len,
-            code_start,
-        })
+        // Add new func proto
+        let upvalues = closure_scope.upvalues;
+        let proto_index = self.chunk.push_proto(code_start, args_len, upvalues);
+        self.chunk.push_instr(Instruction::FuncDef { proto_index })
     }
 
     fn call(&mut self, func: Expr, args: Vec<Expr>) -> CompileResult<()> {
+        let args_len = args.len() as u8;
         for arg in args {
             self.compile_expr(arg)?;
         }
         self.compile_expr(func)?;
-        self.chunk.push_instr(Instruction::Call)
+        self.chunk.push_instr(Instruction::Call { args_len })
     }
 }
 
@@ -361,30 +392,21 @@ impl Compiler {
  * Locals and scoping
  */
 impl Compiler {
-    pub fn resolve_local(&self, name: &str) -> Option<(usize, Local)> {
+    // TODO: Write tests for local scoping
+    pub fn resolve_local(&self, name: &str) -> Option<(usize, u8)> {
         self.locals
             .iter()
             .enumerate()
             .rev()
             .find_map(|(i, l)| match l.name == name {
                 true => {
-                    if l.is_in_function() {
-                        self.resolve_fn_local(name)
-                    } else {
-                        Some((i, l.clone()))
-                    }
+                    // TODO make this readable
+                    let (offset, closure_depth) = match l.closure {
+                        Some(i) => (self.closure_scopes[i as usize].local_start, self.closure_scopes.len() as u8 - i),
+                        None => (0, 0),
+                    };
+                    Some((i - offset, closure_depth))
                 }
-                false => None,
-            })
-    }
-
-    fn resolve_fn_local(&self, name: &str) -> Option<(usize, Local)> {
-        self.locals
-            .iter()
-            .filter(|l| l.depth >= *self.closure_depths.last().unwrap())
-            .enumerate()
-            .find_map(|(i, l)| match l.name == name {
-                true => Some((i, l.clone())),
                 false => None,
             })
     }
@@ -393,7 +415,7 @@ impl Compiler {
         self.locals.push(Local {
             name,
             depth: self.depth,
-            closure: match self.closure_depths.len() {
+            closure: match self.closure_scopes.len() {
                 0 => None,
                 i => Some(i as u8 - 1),
             },
@@ -406,7 +428,11 @@ impl Compiler {
 
     fn enter_function(&mut self) {
         self.scope_incr();
-        self.closure_depths.push(self.depth)
+        self.closure_scopes.push(ClosureScope {
+            depth: self.depth,
+            local_start: self.locals.len(),
+            upvalues: Vec::new(),
+        })
     }
 
     fn scope_decr(&mut self) -> usize {
@@ -419,14 +445,21 @@ impl Compiler {
         pop_count
     }
 
-    fn exit_function(&mut self) -> usize {
-        self.closure_depths.pop().unwrap();
-        self.scope_decr()
+    fn exit_function(&mut self) -> (usize, ClosureScope) {
+        let closure_scope = self.closure_scopes.pop().unwrap();
+        (self.scope_decr(), closure_scope)
     }
 }
 
 impl Local {
     pub fn is_in_function(&self) -> bool {
         self.closure.is_some()
+    }
+
+    pub fn get_closure_index(&self) -> u8 {
+        match self.closure {
+            Some(i) => i + 1,
+            None => 0,
+        }
     }
 }

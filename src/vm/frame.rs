@@ -1,18 +1,30 @@
 use super::Value;
+use super::value::UpValue;
 use crate::compiler::{Chunk, Instruction};
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct Frame {
     pub(super) pc: usize,
     pub(super) stack_top: usize,
+    pub(super) upvalues: Vec<UpValue>,
 }
 
 impl Frame {
-    pub fn new(pc: usize, stack_top: usize) -> Self {
-        Frame { pc, stack_top }
+    pub fn new(pc: usize, stack_top: usize, upvalues: Vec<UpValue>) -> Self {
+        Frame { pc, stack_top, upvalues }
     }
 
     pub fn stack_top(&self) -> usize {
         self.stack_top
+    }
+}
+
+impl Default for Frame {
+    fn default() -> Self {
+        Frame {
+            pc: 0,
+            stack_top: 0,
+            upvalues: Vec::new(),
+        }
     }
 }

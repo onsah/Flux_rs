@@ -1,230 +1,259 @@
 Chunk: Chunk {
     instructions: [
-        Constant {
-            index: 3
-        },
-        Constant {
-            index: 4
-        },
-        InitTable {
-            len: 2,
-            has_keys: false
+        Jump {
+            offset: 13
         },
         Jump {
-            offset: 34
-        },
-        GetFnLocal {
-            index: 0
+            offset: 6
         },
         Constant {
             index: 5
         },
-        Bin(
-            Le
-        ),
-        JumpIf {
-            when_true: false,
-            offset: 4
-        },
-        Constant {
-            index: 6
-        },
-        Return {
-            return_value: true
-        },
-        Jump {
-            offset: 21
-        },
-        GetLocal {
+        GetUpval {
             index: 0
         },
-        GetFnLocal {
-            index: 0
-        },
-        GetField,
-        Nil,
-        Bin(
-            Eq
-        ),
-        JumpIf {
-            when_true: false,
-            offset: 15
-        },
-        GetFnLocal {
-            index: 0
-        },
-        Constant {
-            index: 7
-        },
-        Bin(
-            Sub
-        ),
-        GetLocal {
-            index: 1
-        },
-        Call,
-        GetFnLocal {
-            index: 0
-        },
-        Constant {
-            index: 8
-        },
-        Bin(
-            Sub
-        ),
-        GetLocal {
-            index: 1
-        },
-        Call,
         Bin(
             Add
         ),
-        GetFnLocal {
-            index: 0
-        },
-        GetLocal {
-            index: 0
-        },
-        SetField,
-        GetLocal {
-            index: 0
-        },
-        GetFnLocal {
-            index: 0
-        },
-        GetField,
         Return {
             return_value: true
         },
+        Return {
+            return_value: false
+        },
+        FuncDef {
+            proto_index: 0
+        },
+        GetLocal {
+            index: 1,
+            frame: 1
+        },
+        Return {
+            return_value: true
+        },
+        Pop,
         Pop,
         Return {
             return_value: false
         },
         FuncDef {
-            args_len: 1,
-            code_start: 3
+            proto_index: 1
         },
         Constant {
-            index: 9
-        },
-        GetGlobal {
-            index: 0
-        },
-        Call,
-        Pop,
-        GetGlobal {
-            index: 1
-        },
-        Call,
-        GetGlobal {
-            index: 2
-        },
-        Call,
-        GetLocal {
-            index: 2
+            index: 6
         },
         GetLocal {
-            index: 1
+            index: 0,
+            frame: 0
         },
-        Call,
-        GetGlobal {
-            index: 0
+        Call {
+            args_len: 1
         },
-        Call,
+        GetLocal {
+            index: 1,
+            frame: 0
+        },
+        Call {
+            args_len: 0
+        },
         Pop,
         Return {
             return_value: false
         }
     ],
     constants: [
-        Str(
+        Embedded(
             "print"
         ),
-        Str(
+        Embedded(
+            "println"
+        ),
+        Embedded(
             "readline"
         ),
-        Str(
+        Embedded(
+            "int"
+        ),
+        Embedded(
             "number"
         ),
         Int(
-            1
+            5
         ),
         Int(
-            0
-        ),
-        Int(
-            0
-        ),
-        Int(
-            0
-        ),
-        Int(
-            1
-        ),
-        Int(
-            2
-        ),
-        Str(
-            "enter a number: "
+            4
         )
     ],
-    locals: [],
-    depth: 0,
-    function_depth: []
+    prototypes: [
+        FuncProto {
+            code_start: 1,
+            args_len: 0,
+            upvalues: [
+                UpValueDesc {
+                    index: 0,
+                    is_this: false
+                }
+            ]
+        },
+        FuncProto {
+            code_start: 0,
+            args_len: 1,
+            upvalues: [
+                UpValueDesc {
+                    index: 0,
+                    is_this: true
+                }
+            ]
+        }
+    ]
 }
 
-0: Constant { index: 3 }
-1: Constant { index: 4 }
-2: InitTable { len: 2, has_keys: false }
-3: Jump { offset: 34 }
-4: GetFnLocal { index: 0 }
-5: Constant { index: 5 }
-6: Bin(Le)
-7: JumpIf { when_true: false, offset: 4 }
-8: Constant { index: 6 }
+0: Jump { offset: 13 }
+1: Jump { offset: 6 }
+2: Constant { index: 5 }
+3: GetUpval { index: 0 }
+4: Bin(Add)
+5: Return { return_value: true }
+6: Return { return_value: false }
+7: FuncDef { proto_index: 0 }
+8: GetLocal { index: 1, frame: 1 }
 9: Return { return_value: true }
-10: Jump { offset: 21 }
-11: GetLocal { index: 0 }
-12: GetFnLocal { index: 0 }
-13: GetField
-14: Nil
-15: Bin(Eq)
-16: JumpIf { when_true: false, offset: 15 }
-17: GetFnLocal { index: 0 }
-18: Constant { index: 7 }
-19: Bin(Sub)
-20: GetLocal { index: 1 }
-21: Call
-22: GetFnLocal { index: 0 }
-23: Constant { index: 8 }
-24: Bin(Sub)
-25: GetLocal { index: 1 }
-26: Call
-27: Bin(Add)
-28: GetFnLocal { index: 0 }
-29: GetLocal { index: 0 }
-30: SetField
-31: GetLocal { index: 0 }
-32: GetFnLocal { index: 0 }
-33: GetField
-34: Return { return_value: true }
-35: Pop
-36: Return { return_value: false }
-37: FuncDef { args_len: 1, code_start: 3 }
-38: Constant { index: 9 }
-39: GetGlobal { index: 0 }
-40: Call
-41: Pop
-42: GetGlobal { index: 1 }
-43: Call
-44: GetGlobal { index: 2 }
-45: Call
-46: GetLocal { index: 2 }
-47: GetLocal { index: 1 }
-48: Call
-49: GetGlobal { index: 0 }
-50: Call
-51: Pop
-52: Return { return_value: false }
-enter a number:  
-8 
+10: Pop
+11: Pop
+12: Return { return_value: false }
+13: FuncDef { proto_index: 1 }
+14: Constant { index: 6 }
+15: GetLocal { index: 0, frame: 0 }
+16: Call { args_len: 1 }
+17: GetLocal { index: 1, frame: 0 }
+18: Call { args_len: 0 }
+19: Pop
+20: Return { return_value: false }
+pc: 0, instr: Jump { offset: 13 }
+**********Call stack**********
+Frame { pc: 13, stack_top: 0, upvalues: [] }
+**********STACK LEN: 0**********
+**********STACK END**********
+pc: 13, instr: FuncDef { proto_index: 1 }
+**********Call stack**********
+Frame { pc: 14, stack_top: 0, upvalues: [] }
+**********STACK LEN: 1**********
+fn(1 args args)
+**********STACK END**********
+pc: 14, instr: Constant { index: 6 }
+**********Call stack**********
+Frame { pc: 15, stack_top: 0, upvalues: [] }
+**********STACK LEN: 2**********
+fn(1 args args)
+4
+**********STACK END**********
+pc: 15, instr: GetLocal { index: 0, frame: 0 }
+**********Call stack**********
+Frame { pc: 16, stack_top: 0, upvalues: [] }
+**********STACK LEN: 3**********
+fn(1 args args)
+4
+fn(1 args args)
+**********STACK END**********
+pc: 16, instr: Call { args_len: 1 }
+**********Call stack**********
+Frame { pc: 16, stack_top: 0, upvalues: [] }
+Frame { pc: 1, stack_top: 1, upvalues: [This { index: 0 }] }
+**********STACK LEN: 2**********
+fn(1 args args)
+4
+**********STACK END**********
+pc: 1, instr: Jump { offset: 6 }
+**********Call stack**********
+Frame { pc: 16, stack_top: 0, upvalues: [] }
+Frame { pc: 7, stack_top: 1, upvalues: [This { index: 0 }] }
+**********STACK LEN: 2**********
+fn(1 args args)
+4
+**********STACK END**********
+pc: 7, instr: FuncDef { proto_index: 0 }
+**********Call stack**********
+Frame { pc: 16, stack_top: 0, upvalues: [] }
+Frame { pc: 8, stack_top: 1, upvalues: [This { index: 0 }] }
+**********STACK LEN: 3**********
+fn(1 args args)
+4
+fn(0 args args)
+**********STACK END**********
+pc: 8, instr: GetLocal { index: 1, frame: 1 }
+**********Call stack**********
+Frame { pc: 16, stack_top: 0, upvalues: [] }
+Frame { pc: 9, stack_top: 1, upvalues: [This { index: 0 }] }
+**********STACK LEN: 4**********
+fn(1 args args)
+4
+fn(0 args args)
+fn(0 args args)
+**********STACK END**********
+pc: 9, instr: Return { return_value: true }
+**********Call stack**********
+Frame { pc: 17, stack_top: 0, upvalues: [] }
+**********STACK LEN: 2**********
+fn(1 args args)
+fn(0 args args)
+**********STACK END**********
+pc: 17, instr: GetLocal { index: 1, frame: 0 }
+**********Call stack**********
+Frame { pc: 18, stack_top: 0, upvalues: [] }
+**********STACK LEN: 3**********
+fn(1 args args)
+fn(0 args args)
+fn(0 args args)
+**********STACK END**********
+pc: 18, instr: Call { args_len: 0 }
+**********Call stack**********
+Frame { pc: 18, stack_top: 0, upvalues: [] }
+Frame { pc: 2, stack_top: 2, upvalues: [Closed(Int(4))] }
+**********STACK LEN: 2**********
+fn(1 args args)
+fn(0 args args)
+**********STACK END**********
+pc: 2, instr: Constant { index: 5 }
+**********Call stack**********
+Frame { pc: 18, stack_top: 0, upvalues: [] }
+Frame { pc: 3, stack_top: 2, upvalues: [Closed(Int(4))] }
+**********STACK LEN: 3**********
+fn(1 args args)
+fn(0 args args)
+5
+**********STACK END**********
+pc: 3, instr: GetUpval { index: 0 }
+**********Call stack**********
+Frame { pc: 18, stack_top: 0, upvalues: [] }
+Frame { pc: 4, stack_top: 2, upvalues: [Closed(Int(4))] }
+**********STACK LEN: 4**********
+fn(1 args args)
+fn(0 args args)
+5
+4
+**********STACK END**********
+pc: 4, instr: Bin(Add)
+**********Call stack**********
+Frame { pc: 18, stack_top: 0, upvalues: [] }
+Frame { pc: 5, stack_top: 2, upvalues: [Closed(Int(4))] }
+**********STACK LEN: 3**********
+fn(1 args args)
+fn(0 args args)
+9
+**********STACK END**********
+pc: 5, instr: Return { return_value: true }
+**********Call stack**********
+Frame { pc: 19, stack_top: 0, upvalues: [] }
+**********STACK LEN: 3**********
+fn(1 args args)
+fn(0 args args)
+9
+**********STACK END**********
+pc: 19, instr: Pop
+**********Call stack**********
+Frame { pc: 20, stack_top: 0, upvalues: [] }
+**********STACK LEN: 2**********
+fn(1 args args)
+fn(0 args args)
+**********STACK END**********
+pc: 20, instr: Return { return_value: false }

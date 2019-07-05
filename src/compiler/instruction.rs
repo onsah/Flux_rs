@@ -28,9 +28,11 @@ pub enum Instruction {
     /* These instructions are redundant because they are equivalent to SetFnLocal with top call frame */
     SetLocal {
         index: u16,
+        frame: u8,
     },
     GetLocal {
         index: u16,
+        frame: u8,
     },
     GetFieldImm {
         index: u8,
@@ -77,17 +79,10 @@ pub enum Instruction {
     /* Placeholder for patching jumps */
     Placeholder,
     Print,
-    FuncDef {
-        args_len: u8,
-        code_start: usize,
-    },
-    GetFnLocal {
-        index: u16,
-    },
-    SetFnLocal {
-        index: u16,
-    },
-    Call,
+    FuncDef { proto_index: usize},
+    Call { args_len: u8 },
+    GetUpval { index: u16 },
+    CloseUpval { index: u8 },
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -108,4 +103,13 @@ pub enum BinaryInstr {
 pub enum UnaryInstr {
     Negate,
     Not,
+}
+
+impl BinaryInstr {
+    pub fn is_arithmetic(&self) -> bool {
+        match self {
+            BinaryInstr::Add | BinaryInstr::Sub | BinaryInstr::Mul | BinaryInstr::Div => true,
+            _ => false,
+        }
+    }
 }

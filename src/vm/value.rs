@@ -1,10 +1,11 @@
 use crate::vm::{RuntimeError, RuntimeResult};
-pub use function::{Function, NativeFunction};
 use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::fmt::{self, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
+
+pub use function::{Function, NativeFunction, ArgsLen, UpValue};
 pub use table::Table;
 
 mod function;
