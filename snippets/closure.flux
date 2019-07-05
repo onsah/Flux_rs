@@ -1,12 +1,10 @@
-let dummy = 5
-let foo = fn(x) 
-    return fn(y)
-        return fn()
-            return x + y
-        end
+let bind = fn(f, arg) 
+    return fn()
+        return f(arg)
     end
 end
-let bar = foo(4)
-let barr = bar(5)
-println(barr())
-println(barr())
+let square = fn(x)
+    return x * x
+end
+let square5 = bind(square, 5)
+println(square5())
