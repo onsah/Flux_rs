@@ -1,6 +1,4 @@
-use super::Value;
 use super::value::UpValue;
-use crate::compiler::{Chunk, Instruction};
 
 #[derive(Clone, Debug)]
 pub struct Frame {

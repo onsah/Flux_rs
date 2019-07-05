@@ -1,8 +1,7 @@
 use super::Instruction;
 use super::{CompileError, CompileResult};
 use super::UpValueDesc;
-use crate::vm::{Function, Value, PREDEFINED_CONSTANTS};
-use std::collections::HashSet;
+use crate::vm::{Value, PREDEFINED_CONSTANTS};
 
 #[derive(Clone, Debug)]
 pub struct Chunk {

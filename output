@@ -1,16 +1,22 @@
 Chunk: Chunk {
     instructions: [
+        Constant {
+            index: 5
+        },
         Jump {
-            offset: 13
+            offset: 16
+        },
+        Jump {
+            offset: 11
         },
         Jump {
             offset: 6
         },
-        Constant {
-            index: 5
-        },
         GetUpval {
             index: 0
+        },
+        GetUpval {
+            index: 1
         },
         Bin(
             Add
@@ -24,14 +30,9 @@ Chunk: Chunk {
         FuncDef {
             proto_index: 0
         },
-        GetLocal {
-            index: 1,
-            frame: 1
-        },
         Return {
             return_value: true
         },
-        Pop,
         Pop,
         Return {
             return_value: false
@@ -39,22 +40,62 @@ Chunk: Chunk {
         FuncDef {
             proto_index: 1
         },
+        Return {
+            return_value: true
+        },
+        Pop,
+        Return {
+            return_value: false
+        },
+        FuncDef {
+            proto_index: 2
+        },
         Constant {
             index: 6
-        },
-        GetLocal {
-            index: 0,
-            frame: 0
-        },
-        Call {
-            args_len: 1
         },
         GetLocal {
             index: 1,
             frame: 0
         },
         Call {
+            args_len: 1
+        },
+        Constant {
+            index: 7
+        },
+        GetLocal {
+            index: 2,
+            frame: 0
+        },
+        Call {
+            args_len: 1
+        },
+        GetLocal {
+            index: 3,
+            frame: 0
+        },
+        Call {
             args_len: 0
+        },
+        GetGlobal {
+            index: 1
+        },
+        Call {
+            args_len: 1
+        },
+        Pop,
+        GetLocal {
+            index: 3,
+            frame: 0
+        },
+        Call {
+            args_len: 0
+        },
+        GetGlobal {
+            index: 1
+        },
+        Call {
+            args_len: 1
         },
         Pop,
         Return {
@@ -82,21 +123,42 @@ Chunk: Chunk {
         ),
         Int(
             4
+        ),
+        Int(
+            5
         )
     ],
     prototypes: [
         FuncProto {
-            code_start: 1,
+            code_start: 3,
             args_len: 0,
             upvalues: [
                 UpValueDesc {
                     index: 0,
                     is_this: false
+                },
+                UpValueDesc {
+                    index: 1,
+                    is_this: false
                 }
             ]
         },
         FuncProto {
-            code_start: 0,
+            code_start: 2,
+            args_len: 1,
+            upvalues: [
+                UpValueDesc {
+                    index: 0,
+                    is_this: false
+                },
+                UpValueDesc {
+                    index: 0,
+                    is_this: true
+                }
+            ]
+        },
+        FuncProto {
+            code_start: 1,
             args_len: 1,
             upvalues: [
                 UpValueDesc {
@@ -108,152 +170,326 @@ Chunk: Chunk {
     ]
 }
 
-0: Jump { offset: 13 }
-1: Jump { offset: 6 }
-2: Constant { index: 5 }
-3: GetUpval { index: 0 }
-4: Bin(Add)
-5: Return { return_value: true }
-6: Return { return_value: false }
-7: FuncDef { proto_index: 0 }
-8: GetLocal { index: 1, frame: 1 }
-9: Return { return_value: true }
-10: Pop
+0: Constant { index: 5 }
+1: Jump { offset: 16 }
+2: Jump { offset: 11 }
+3: Jump { offset: 6 }
+4: GetUpval { index: 0 }
+5: GetUpval { index: 1 }
+6: Bin(Add)
+7: Return { return_value: true }
+8: Return { return_value: false }
+9: FuncDef { proto_index: 0 }
+10: Return { return_value: true }
 11: Pop
 12: Return { return_value: false }
 13: FuncDef { proto_index: 1 }
-14: Constant { index: 6 }
-15: GetLocal { index: 0, frame: 0 }
-16: Call { args_len: 1 }
-17: GetLocal { index: 1, frame: 0 }
-18: Call { args_len: 0 }
-19: Pop
-20: Return { return_value: false }
-pc: 0, instr: Jump { offset: 13 }
+14: Return { return_value: true }
+15: Pop
+16: Return { return_value: false }
+17: FuncDef { proto_index: 2 }
+18: Constant { index: 6 }
+19: GetLocal { index: 1, frame: 0 }
+20: Call { args_len: 1 }
+21: Constant { index: 7 }
+22: GetLocal { index: 2, frame: 0 }
+23: Call { args_len: 1 }
+24: GetLocal { index: 3, frame: 0 }
+25: Call { args_len: 0 }
+26: GetGlobal { index: 1 }
+27: Call { args_len: 1 }
+28: Pop
+29: GetLocal { index: 3, frame: 0 }
+30: Call { args_len: 0 }
+31: GetGlobal { index: 1 }
+32: Call { args_len: 1 }
+33: Pop
+34: Return { return_value: false }
 **********Call stack**********
-Frame { pc: 13, stack_top: 0, upvalues: [] }
-**********STACK LEN: 0**********
-**********STACK END**********
-pc: 13, instr: FuncDef { proto_index: 1 }
-**********Call stack**********
-Frame { pc: 14, stack_top: 0, upvalues: [] }
+Frame { pc: 1, stack_top: 0, upvalues: [] }
 **********STACK LEN: 1**********
-fn(1 args args)
+5
 **********STACK END**********
-pc: 14, instr: Constant { index: 6 }
-**********Call stack**********
-Frame { pc: 15, stack_top: 0, upvalues: [] }
-**********STACK LEN: 2**********
-fn(1 args args)
-4
-**********STACK END**********
-pc: 15, instr: GetLocal { index: 0, frame: 0 }
-**********Call stack**********
-Frame { pc: 16, stack_top: 0, upvalues: [] }
-**********STACK LEN: 3**********
-fn(1 args args)
-4
-fn(1 args args)
-**********STACK END**********
-pc: 16, instr: Call { args_len: 1 }
-**********Call stack**********
-Frame { pc: 16, stack_top: 0, upvalues: [] }
-Frame { pc: 1, stack_top: 1, upvalues: [This { index: 0 }] }
-**********STACK LEN: 2**********
-fn(1 args args)
-4
-**********STACK END**********
-pc: 1, instr: Jump { offset: 6 }
-**********Call stack**********
-Frame { pc: 16, stack_top: 0, upvalues: [] }
-Frame { pc: 7, stack_top: 1, upvalues: [This { index: 0 }] }
-**********STACK LEN: 2**********
-fn(1 args args)
-4
-**********STACK END**********
-pc: 7, instr: FuncDef { proto_index: 0 }
-**********Call stack**********
-Frame { pc: 16, stack_top: 0, upvalues: [] }
-Frame { pc: 8, stack_top: 1, upvalues: [This { index: 0 }] }
-**********STACK LEN: 3**********
-fn(1 args args)
-4
-fn(0 args args)
-**********STACK END**********
-pc: 8, instr: GetLocal { index: 1, frame: 1 }
-**********Call stack**********
-Frame { pc: 16, stack_top: 0, upvalues: [] }
-Frame { pc: 9, stack_top: 1, upvalues: [This { index: 0 }] }
-**********STACK LEN: 4**********
-fn(1 args args)
-4
-fn(0 args args)
-fn(0 args args)
-**********STACK END**********
-pc: 9, instr: Return { return_value: true }
 **********Call stack**********
 Frame { pc: 17, stack_top: 0, upvalues: [] }
-**********STACK LEN: 2**********
-fn(1 args args)
-fn(0 args args)
-**********STACK END**********
-pc: 17, instr: GetLocal { index: 1, frame: 0 }
-**********Call stack**********
-Frame { pc: 18, stack_top: 0, upvalues: [] }
-**********STACK LEN: 3**********
-fn(1 args args)
-fn(0 args args)
-fn(0 args args)
-**********STACK END**********
-pc: 18, instr: Call { args_len: 0 }
-**********Call stack**********
-Frame { pc: 18, stack_top: 0, upvalues: [] }
-Frame { pc: 2, stack_top: 2, upvalues: [Closed(Int(4))] }
-**********STACK LEN: 2**********
-fn(1 args args)
-fn(0 args args)
-**********STACK END**********
-pc: 2, instr: Constant { index: 5 }
-**********Call stack**********
-Frame { pc: 18, stack_top: 0, upvalues: [] }
-Frame { pc: 3, stack_top: 2, upvalues: [Closed(Int(4))] }
-**********STACK LEN: 3**********
-fn(1 args args)
-fn(0 args args)
+**********STACK LEN: 1**********
 5
 **********STACK END**********
-pc: 3, instr: GetUpval { index: 0 }
 **********Call stack**********
 Frame { pc: 18, stack_top: 0, upvalues: [] }
-Frame { pc: 4, stack_top: 2, upvalues: [Closed(Int(4))] }
-**********STACK LEN: 4**********
-fn(1 args args)
-fn(0 args args)
+**********STACK LEN: 2**********
 5
-4
-**********STACK END**********
-pc: 4, instr: Bin(Add)
-**********Call stack**********
-Frame { pc: 18, stack_top: 0, upvalues: [] }
-Frame { pc: 5, stack_top: 2, upvalues: [Closed(Int(4))] }
-**********STACK LEN: 3**********
 fn(1 args args)
-fn(0 args args)
-9
 **********STACK END**********
-pc: 5, instr: Return { return_value: true }
 **********Call stack**********
 Frame { pc: 19, stack_top: 0, upvalues: [] }
 **********STACK LEN: 3**********
+5
+fn(1 args args)
+4
+**********STACK END**********
+**********Call stack**********
+Frame { pc: 20, stack_top: 0, upvalues: [] }
+**********STACK LEN: 4**********
+5
+fn(1 args args)
+4
+fn(1 args args)
+**********STACK END**********
+**********Call stack**********
+Frame { pc: 20, stack_top: 0, upvalues: [] }
+Frame { pc: 2, stack_top: 2, upvalues: [This { index: 0 }] }
+**********STACK LEN: 3**********
+5
+fn(1 args args)
+4
+**********STACK END**********
+**********Call stack**********
+Frame { pc: 20, stack_top: 0, upvalues: [] }
+Frame { pc: 13, stack_top: 2, upvalues: [This { index: 0 }] }
+**********STACK LEN: 3**********
+5
+fn(1 args args)
+4
+**********STACK END**********
+**********Call stack**********
+Frame { pc: 20, stack_top: 0, upvalues: [] }
+Frame { pc: 14, stack_top: 2, upvalues: [This { index: 0 }] }
+**********STACK LEN: 4**********
+5
+fn(1 args args)
+4
+fn(1 args args)
+**********STACK END**********
+**********Call stack**********
+Frame { pc: 21, stack_top: 0, upvalues: [] }
+**********STACK LEN: 3**********
+5
+fn(1 args args)
+fn(1 args args)
+**********STACK END**********
+**********Call stack**********
+Frame { pc: 22, stack_top: 0, upvalues: [] }
+**********STACK LEN: 4**********
+5
+fn(1 args args)
+fn(1 args args)
+5
+**********STACK END**********
+**********Call stack**********
+Frame { pc: 23, stack_top: 0, upvalues: [] }
+**********STACK LEN: 5**********
+5
+fn(1 args args)
+fn(1 args args)
+5
+fn(1 args args)
+**********STACK END**********
+**********Call stack**********
+Frame { pc: 23, stack_top: 0, upvalues: [] }
+Frame { pc: 3, stack_top: 3, upvalues: [Closed(Int(4)), This { index: 0 }] }
+**********STACK LEN: 4**********
+5
+fn(1 args args)
+fn(1 args args)
+5
+**********STACK END**********
+**********Call stack**********
+Frame { pc: 23, stack_top: 0, upvalues: [] }
+Frame { pc: 9, stack_top: 3, upvalues: [Closed(Int(4)), This { index: 0 }] }
+**********STACK LEN: 4**********
+5
+fn(1 args args)
+fn(1 args args)
+5
+**********STACK END**********
+**********Call stack**********
+Frame { pc: 23, stack_top: 0, upvalues: [] }
+Frame { pc: 10, stack_top: 3, upvalues: [Closed(Int(4)), This { index: 0 }] }
+**********STACK LEN: 5**********
+5
+fn(1 args args)
+fn(1 args args)
+5
+fn(0 args args)
+**********STACK END**********
+**********Call stack**********
+Frame { pc: 24, stack_top: 0, upvalues: [] }
+**********STACK LEN: 4**********
+5
+fn(1 args args)
+fn(1 args args)
+fn(0 args args)
+**********STACK END**********
+**********Call stack**********
+Frame { pc: 25, stack_top: 0, upvalues: [] }
+**********STACK LEN: 5**********
+5
+fn(1 args args)
+fn(1 args args)
+fn(0 args args)
+fn(0 args args)
+**********STACK END**********
+**********Call stack**********
+Frame { pc: 25, stack_top: 0, upvalues: [] }
+Frame { pc: 4, stack_top: 4, upvalues: [Closed(Int(4)), Closed(Int(5))] }
+**********STACK LEN: 4**********
+5
+fn(1 args args)
+fn(1 args args)
+fn(0 args args)
+**********STACK END**********
+**********Call stack**********
+Frame { pc: 25, stack_top: 0, upvalues: [] }
+Frame { pc: 5, stack_top: 4, upvalues: [Closed(Int(4)), Closed(Int(5))] }
+**********STACK LEN: 5**********
+5
+fn(1 args args)
+fn(1 args args)
+fn(0 args args)
+4
+**********STACK END**********
+**********Call stack**********
+Frame { pc: 25, stack_top: 0, upvalues: [] }
+Frame { pc: 6, stack_top: 4, upvalues: [Closed(Int(4)), Closed(Int(5))] }
+**********STACK LEN: 6**********
+5
+fn(1 args args)
+fn(1 args args)
+fn(0 args args)
+4
+5
+**********STACK END**********
+**********Call stack**********
+Frame { pc: 25, stack_top: 0, upvalues: [] }
+Frame { pc: 7, stack_top: 4, upvalues: [Closed(Int(4)), Closed(Int(5))] }
+**********STACK LEN: 5**********
+5
+fn(1 args args)
 fn(1 args args)
 fn(0 args args)
 9
 **********STACK END**********
-pc: 19, instr: Pop
 **********Call stack**********
-Frame { pc: 20, stack_top: 0, upvalues: [] }
-**********STACK LEN: 2**********
+Frame { pc: 26, stack_top: 0, upvalues: [] }
+**********STACK LEN: 5**********
+5
+fn(1 args args)
+fn(1 args args)
+fn(0 args args)
+9
+**********STACK END**********
+**********Call stack**********
+Frame { pc: 27, stack_top: 0, upvalues: [] }
+**********STACK LEN: 6**********
+5
+fn(1 args args)
+fn(1 args args)
+fn(0 args args)
+9
+native fn(variadic args)
+**********STACK END**********
+9 
+**********Call stack**********
+Frame { pc: 28, stack_top: 0, upvalues: [] }
+**********STACK LEN: 5**********
+5
+fn(1 args args)
+fn(1 args args)
+fn(0 args args)
+()
+**********STACK END**********
+**********Call stack**********
+Frame { pc: 29, stack_top: 0, upvalues: [] }
+**********STACK LEN: 4**********
+5
+fn(1 args args)
 fn(1 args args)
 fn(0 args args)
 **********STACK END**********
-pc: 20, instr: Return { return_value: false }
+**********Call stack**********
+Frame { pc: 30, stack_top: 0, upvalues: [] }
+**********STACK LEN: 5**********
+5
+fn(1 args args)
+fn(1 args args)
+fn(0 args args)
+fn(0 args args)
+**********STACK END**********
+**********Call stack**********
+Frame { pc: 30, stack_top: 0, upvalues: [] }
+Frame { pc: 4, stack_top: 4, upvalues: [Closed(Int(4)), Closed(Int(5))] }
+**********STACK LEN: 4**********
+5
+fn(1 args args)
+fn(1 args args)
+fn(0 args args)
+**********STACK END**********
+**********Call stack**********
+Frame { pc: 30, stack_top: 0, upvalues: [] }
+Frame { pc: 5, stack_top: 4, upvalues: [Closed(Int(4)), Closed(Int(5))] }
+**********STACK LEN: 5**********
+5
+fn(1 args args)
+fn(1 args args)
+fn(0 args args)
+4
+**********STACK END**********
+**********Call stack**********
+Frame { pc: 30, stack_top: 0, upvalues: [] }
+Frame { pc: 6, stack_top: 4, upvalues: [Closed(Int(4)), Closed(Int(5))] }
+**********STACK LEN: 6**********
+5
+fn(1 args args)
+fn(1 args args)
+fn(0 args args)
+4
+5
+**********STACK END**********
+**********Call stack**********
+Frame { pc: 30, stack_top: 0, upvalues: [] }
+Frame { pc: 7, stack_top: 4, upvalues: [Closed(Int(4)), Closed(Int(5))] }
+**********STACK LEN: 5**********
+5
+fn(1 args args)
+fn(1 args args)
+fn(0 args args)
+9
+**********STACK END**********
+**********Call stack**********
+Frame { pc: 31, stack_top: 0, upvalues: [] }
+**********STACK LEN: 5**********
+5
+fn(1 args args)
+fn(1 args args)
+fn(0 args args)
+9
+**********STACK END**********
+**********Call stack**********
+Frame { pc: 32, stack_top: 0, upvalues: [] }
+**********STACK LEN: 6**********
+5
+fn(1 args args)
+fn(1 args args)
+fn(0 args args)
+9
+native fn(variadic args)
+**********STACK END**********
+9 
+**********Call stack**********
+Frame { pc: 33, stack_top: 0, upvalues: [] }
+**********STACK LEN: 5**********
+5
+fn(1 args args)
+fn(1 args args)
+fn(0 args args)
+()
+**********STACK END**********
+**********Call stack**********
+Frame { pc: 34, stack_top: 0, upvalues: [] }
+**********STACK LEN: 4**********
+5
+fn(1 args args)
+fn(1 args args)
+fn(0 args args)
+**********STACK END**********

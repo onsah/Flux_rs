@@ -171,6 +171,7 @@ impl Compiler {
     }
 
     fn compile_expr(&mut self, expr: Expr) -> CompileResult<()> {
+        #[allow(unreachable_patterns)]
         match expr {
             Expr::Literal(lit) => self.literal(lit),
             Expr::Identifier(name) => self.ident(name),
@@ -223,6 +224,7 @@ impl Compiler {
                         index,
                         is_this: true,
                     });
+                    index = closure.upvalues.len() as u16 - 1;
                 }
                 for closure in closure_iter {
                     closure.upvalues.push(UpValueDesc {
@@ -448,18 +450,5 @@ impl Compiler {
     fn exit_function(&mut self) -> (usize, ClosureScope) {
         let closure_scope = self.closure_scopes.pop().unwrap();
         (self.scope_decr(), closure_scope)
-    }
-}
-
-impl Local {
-    pub fn is_in_function(&self) -> bool {
-        self.closure.is_some()
-    }
-
-    pub fn get_closure_index(&self) -> u8 {
-        match self.closure {
-            Some(i) => i + 1,
-            None => 0,
-        }
     }
 }

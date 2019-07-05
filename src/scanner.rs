@@ -229,13 +229,6 @@ impl<'a> Scanner<'a> {
         self.chars.peek().map(|(_, c)| *c).unwrap_or(' ')
     }
 
-    fn try_peek(&mut self) -> Result<(usize, char)> {
-        match self.chars.peek() {
-            Some(&t) => Ok(t),
-            None => Err(LexError::TooShort { line: self.line }),
-        }
-    }
-
     fn new_token(&self, typ: TokenType, start: usize, end: usize) -> Token {
         Token {
             typ,

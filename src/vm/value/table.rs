@@ -1,9 +1,5 @@
 use super::Value;
-use std::cell::RefCell;
 use std::collections::HashMap;
-use std::rc::Rc;
-
-pub type HeapTable = Rc<RefCell<Table>>;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Table {

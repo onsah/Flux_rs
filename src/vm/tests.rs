@@ -1,5 +1,5 @@
 use super::{Vm, RuntimeError, Value};
-use crate::compiler::{Compiler, Chunk};
+use crate::compiler::Compiler;
 use crate::parser::Parser;
 
 #[test]
@@ -58,12 +58,15 @@ fn recursion_works() {
 #[test]
 fn closure_works() {
     let source = "let foo = fn(x) 
-        return fn() 
-            return x + 5
+        return fn(y)
+            return fn()
+                return x + y 
+            end
         end 
     end
     let bar = foo(10)
-    return bar()";
+    let barr = bar(5)
+    return barr()";
     let mut parser = Parser::new(source).unwrap();
     let ast = parser.parse().unwrap();
     let chunk = Compiler::compile(ast).unwrap();

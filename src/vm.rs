@@ -72,20 +72,24 @@ impl Vm {
                         Value::Function(function) => {
                             if let Function::User(func) = function {
                                 let frame = self.current_frame().unwrap();
+                                // Closure upvalues that will be dropped
                                 for upval in func.upvalues_mut() {
-                                    let close = match upval {
+                                    match upval {
                                         UpValue::Open { index } => {
-                                            match frame.upvalues[*index as usize] {
-                                                UpValue::This { index } => Some(index),
-                                                _ => None,
+                                            match &frame.upvalues[*index as usize] {
+                                                UpValue::This { index } => {
+                                                    let index = frame.stack_top + *index as usize;
+                                                    let value = self.stack[index].clone();
+                                                    *upval = UpValue::Closed(value);
+                                                },
+                                                // Note: can be moved somehow since it will be dropped immediately
+                                                UpValue::Closed(value) => {
+                                                    *upval = UpValue::Closed(value.clone());
+                                                }
+                                                _ => (),
                                             }
                                         },
-                                        _ => None,
-                                    };
-                                    if let Some(index) = close {
-                                        let index = frame.stack_top + index as usize;
-                                        let value = self.stack[index].clone();
-                                        *upval = UpValue::Closed(value);
+                                        _ => (),
                                     }
                                 }
                             }
@@ -446,11 +450,6 @@ impl Vm {
         self.current_chunk.as_ref().unwrap()
     }
 
-    #[inline]
-    fn current_chunk_mut(&mut self) -> &mut Chunk {
-        self.current_chunk.as_mut().unwrap()
-    }
-
     fn pop_stack(&mut self) -> RuntimeResult<Value> {
         match self.stack.pop() {
             Some(value) => Ok(value),
@@ -458,6 +457,7 @@ impl Vm {
         }
     }
 
+    #[allow(dead_code)]
     fn print_call_stack(&self) {
         println!("**********Call stack**********");
         for frame in &self.frames {
@@ -465,6 +465,7 @@ impl Vm {
         }
     }
 
+    #[allow(dead_code)]
     fn print_stack(&self) {
         println!("**********STACK LEN: {}**********", self.stack.len());
         for value in self.stack.iter() {

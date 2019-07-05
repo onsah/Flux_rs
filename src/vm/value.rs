@@ -11,7 +11,7 @@ pub use table::Table;
 mod function;
 mod table;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum Value {
     Nil,
     Bool(bool),
@@ -66,6 +66,29 @@ impl From<String> for Value {
     }
 }
 
+impl PartialEq for Value {
+    fn eq(&self, other: &Value) -> bool {
+        use Value::*;
+        match (self, other) {
+            (Nil, Nil) => true,
+            (Bool(a), Bool(b)) => a == b,
+            (Int(a), Int(b)) => a == b,
+            (Number(a), Number(b)) => a == b,
+            // TODO: number and int equality
+            (Str(a), Str(b)) => a == b,
+            (Embedded(a), Embedded(b)) => a == b,
+            (Str(a), Embedded(b)) => a.as_str() == *b,
+            (Embedded(a), Str(b)) => *a == b.as_str(),
+            (Table(a), Table(b)) => a == b,
+            (Tuple(a), Tuple(b)) => a == b,
+            (Function(a), Function(b)) => a == b,
+            (Unit, Unit) => true,
+            _ => false,
+        }
+    }
+}
+
+// hash(5) == hash(5.0)
 impl Hash for Value {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
@@ -154,5 +177,13 @@ impl Display for Value {
             Value::Unit => write!(f, "()"),
             Value::Embedded(string) => write!(f, "{}", string),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    // TODO
+    fn hash_works() {
+
     }
 }

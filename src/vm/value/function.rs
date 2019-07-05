@@ -1,8 +1,8 @@
 use std::fmt::{Display, Formatter};
+use std::hash::{Hash, Hasher};
 use super::Value;
 use crate::compiler::UpValueDesc;
 use crate::vm::RuntimeResult;
-use std::hash::Hash;
 
 #[derive(Clone, Debug, Hash, PartialEq)]
 pub enum Function {
@@ -10,7 +10,7 @@ pub enum Function {
     Native(NativeFunction)
 }
 
-#[derive(Clone, Debug, Hash)]
+#[derive(Clone, Debug)]
 pub struct UserFunction {
     args_len: u8,
     code_start: usize,
@@ -134,6 +134,13 @@ impl NativeFunction {
 impl PartialEq for UserFunction {
     fn eq(&self, rhs: &Self) -> bool {
         self.code_start == rhs.code_start
+    }
+}
+
+impl Hash for UserFunction {
+    // Code start should be unique
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.code_start.hash(state)
     }
 }
 

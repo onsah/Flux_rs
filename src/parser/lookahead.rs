@@ -3,6 +3,7 @@ use super::{ParserError, Token, TokenType};
 
 const LOOKAHEAD_SIZE: usize = 3;
 
+// Lol it turns out my syntax doesn't need lookahead :)
 pub struct LookAhead<I>
 where
     I: Iterator<Item = Token>,
@@ -54,19 +55,6 @@ where
         self.lookahead_index = next_index;
     }
 
-    /* pub(super) fn prev(&self) -> Result<Token> {
-        let i = match self.lookahead_index {
-            0 => LOOKAHEAD_SIZE - 1,
-            i => i - 1,
-        };
-        let token = self.lookahead[i].clone();
-        if token.is_invalid() {
-            Err(ParserError::UnexpectedToken { token })
-        } else {
-            Ok(token)
-        }
-    } */
-
     pub(super) fn current(&self) -> Result<Token> {
         let i = self.lookahead_index;
         let token = self.lookahead[i].clone();
@@ -78,6 +66,7 @@ where
         }
     }
 
+    #[allow(dead_code)]
     pub(super) fn peek_first(&self) -> Result<Token> {
         let i = (self.lookahead_index + 1) % LOOKAHEAD_SIZE;
         let token = self.lookahead[i].clone();

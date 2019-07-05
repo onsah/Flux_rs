@@ -1,5 +1,3 @@
-use crate::parser::ParserError;
-
 #[derive(Copy, Clone, Debug)]
 pub enum LexError {
     // Expected different char

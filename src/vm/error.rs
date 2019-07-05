@@ -1,4 +1,4 @@
-use crate::compiler::{BinaryInstr, Instruction, UnaryInstr};
+use crate::compiler::{BinaryInstr, Instruction};
 use crate::vm::Value;
 
 #[derive(Debug, Clone, PartialEq)]

@@ -125,6 +125,7 @@ where
         })
     }
 
+    #[allow(dead_code)]
     fn print_stmt(&mut self) -> Result<Statement> {
         let expr = self.expression()?;
         Ok(Statement::Print(expr))
