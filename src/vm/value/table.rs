@@ -1,5 +1,7 @@
 use super::Value;
 use std::collections::HashMap;
+use std::rc::Rc;
+use std::cell::RefCell;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Table {
@@ -11,10 +13,7 @@ impl Table {
     const NIL: Value = Value::Nil;
 
     pub fn new() -> Self {
-        Table {
-            table: HashMap::new(),
-            array: Vec::new(),
-        }
+        Self::default()
     }
 
     pub fn from_array(array: Vec<(Value, Value)>) -> Self {
@@ -44,5 +43,14 @@ impl Table {
         self.table
             .iter()
             .chain(self.array.iter().map(|(v1, v2)| (v1, v2)))
+    }
+}
+
+impl Default for Table {
+    fn default() -> Self {
+        Table {
+            table: HashMap::new(),
+            array: Vec::new(),
+        }
     }
 }

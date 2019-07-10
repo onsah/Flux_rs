@@ -34,12 +34,14 @@ pub enum Instruction {
         index: u16,
         frame: u8,
     },
+    /*Peek the table then get the value using key and push it to the stack */
+    GetMethodImm {
+        index: u8,
+    },
+    /*pop the table then get the value using key and push to stack */
     GetFieldImm {
         index: u8,
     },
-    /** pop the table then get the value using key and push to stack
-     * GetFieldImm { key: u16 }
-     */
     /*pop the key and table then push the value from the table */
     GetField,
     SetFieldImm {
@@ -106,7 +108,7 @@ pub enum UnaryInstr {
 }
 
 impl BinaryInstr {
-    pub fn is_arithmetic(&self) -> bool {
+    pub fn is_arithmetic(self) -> bool {
         match self {
             BinaryInstr::Add | BinaryInstr::Sub | BinaryInstr::Mul | BinaryInstr::Div => true,
             _ => false,

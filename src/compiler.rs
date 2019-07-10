@@ -71,11 +71,11 @@ impl Compiler {
                 condition,
                 then_block,
                 else_block,
-            } => self.if_stmt(condition, then_block, else_block),
+            } => self.if_stmt(condition, *then_block, else_block.map(|x| *x)),
             Statement::While {
                 condition,
                 then_block,
-            } => self.while_stmt(condition, then_block),
+            } => self.while_stmt(condition, *then_block),
             Statement::Print(expr) => {
                 self.compile_expr(expr)?;
                 self.chunk.push_instr(Instruction::Print)
@@ -121,12 +121,12 @@ impl Compiler {
     fn if_stmt(
         &mut self,
         condition: Expr,
-        then_block: Box<Statement>,
-        else_block: Option<Box<Statement>>,
+        then_block: Statement,
+        else_block: Option<Statement>,
     ) -> CompileResult<()> {
         self.compile_expr(condition)?;
         let patch_index = self.chunk.push_placeholder()?;
-        self.compile_stmt(*then_block)?;
+        self.compile_stmt(then_block)?;
         let offset = self.chunk.instructions().len() - patch_index;
         if offset > std::i8::MAX as usize {
             return Err(CompileError::TooLongToJump);
@@ -135,7 +135,7 @@ impl Compiler {
             .patch_placeholder(patch_index, offset as i8, JumpCondition::WhenFalse)?;
         let has_else = if let Some(else_block) = else_block {
             let patch_index = self.chunk.push_placeholder()?;
-            self.compile_stmt(*else_block)?;
+            self.compile_stmt(else_block)?;
             let offset = self.chunk.instructions().len() - patch_index;
             if offset > std::i8::MAX as usize {
                 return Err(CompileError::TooLongToJump);
@@ -157,11 +157,11 @@ impl Compiler {
         Ok(())
     }
 
-    fn while_stmt(&mut self, condition: Expr, then_block: Box<Statement>) -> CompileResult<()> {
+    fn while_stmt(&mut self, condition: Expr, then_block: Statement) -> CompileResult<()> {
         let start_index = self.chunk.instructions().len();
         self.compile_expr(condition)?;
         let patch_index = self.chunk.push_placeholder()?;
-        self.compile_stmt(*then_block)?;
+        self.compile_stmt(then_block)?;
         let offset = self.chunk.instructions().len() - patch_index + 1;
         self.chunk
             .patch_placeholder(patch_index, offset as i8, JumpCondition::WhenFalse)?;
@@ -180,6 +180,7 @@ impl Compiler {
             Expr::Grouping(expr) => self.compile_expr(*expr),
             Expr::Tuple(exprs) => self.tuple(exprs),
             Expr::Access { table, field } => self.access(*table, *field),
+            Expr::SelfAccess { table, field } => self.self_access(*table, field),
             Expr::Set { variable, value } => self.set(*variable, *value),
             Expr::TableInit { keys, values } => self.table_init(keys, values),
             Expr::Function { args, body } => self.function_def(args, body),
@@ -304,6 +305,12 @@ impl Compiler {
             }
         };
         self.chunk.push_instr(access_instr)
+    }
+
+    fn self_access(&mut self, table: Expr, field: String) -> CompileResult<()> {
+        self.compile_expr(table)?;
+        let index = self.chunk.add_constant(field.into())?;
+        self.chunk.push_instr(Instruction::GetMethodImm { index })
     }
 
     fn set(&mut self, variable: Expr, value: Expr) -> CompileResult<()> {

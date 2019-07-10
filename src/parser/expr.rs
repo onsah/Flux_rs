@@ -20,6 +20,10 @@ pub enum Expr {
         table: Box<Expr>,
         field: Box<Expr>,
     },
+    SelfAccess {
+        table: Box<Expr>,
+        field: String,
+    },
     Set {
         variable: Box<Expr>,
         value: Box<Expr>,

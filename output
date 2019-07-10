@@ -6,30 +6,90 @@ Chunk: Chunk {
         Jump {
             offset: 16
         },
-        Jump {
-            offset: 11
+        GetLocal {
+            index: 0,
+            frame: 1
         },
-        Jump {
-            offset: 6
+        GetLocal {
+            index: 1,
+            frame: 1
         },
-        GetUpval {
-            index: 0
+        GetFieldImm {
+            index: 6
         },
-        GetUpval {
-            index: 1
+        GetLocal {
+            index: 1,
+            frame: 1
+        },
+        SetField,
+        GetLocal {
+            index: 1,
+            frame: 1
+        },
+        GetFieldImm {
+            index: 6
+        },
+        Constant {
+            index: 7
         },
         Bin(
             Add
         ),
-        Return {
-            return_value: true
+        Constant {
+            index: 6
         },
+        GetLocal {
+            index: 1,
+            frame: 1
+        },
+        SetField,
+        Pop,
+        Pop,
         Return {
             return_value: false
         },
         FuncDef {
             proto_index: 0
         },
+        Constant {
+            index: 8
+        },
+        Jump {
+            offset: 15
+        },
+        GetLocal {
+            index: 0,
+            frame: 1
+        },
+        GetFieldImm {
+            index: 6
+        },
+        Constant {
+            index: 9
+        },
+        Bin(
+            Sub
+        ),
+        Constant {
+            index: 6
+        },
+        GetLocal {
+            index: 0,
+            frame: 1
+        },
+        SetField,
+        GetLocal {
+            index: 0,
+            frame: 1
+        },
+        GetLocal {
+            index: 0,
+            frame: 1
+        },
+        GetFieldImm {
+            index: 6
+        },
+        GetField,
         Return {
             return_value: true
         },
@@ -40,53 +100,58 @@ Chunk: Chunk {
         FuncDef {
             proto_index: 1
         },
-        Return {
-            return_value: true
-        },
-        Pop,
-        Return {
-            return_value: false
-        },
-        FuncDef {
-            proto_index: 2
-        },
         Constant {
             index: 6
+        },
+        Constant {
+            index: 10
+        },
+        InitTable {
+            len: 3,
+            has_keys: true
+        },
+        Constant {
+            index: 11
+        },
+        GetLocal {
+            index: 0,
+            frame: 0
+        },
+        GetMethodImm {
+            index: 5
+        },
+        Call {
+            args_len: 1
+        },
+        Pop,
+        Constant {
+            index: 12
+        },
+        InitTable {
+            len: 1,
+            has_keys: false
+        },
+        GetLocal {
+            index: 0,
+            frame: 0
+        },
+        GetMethodImm {
+            index: 8
+        },
+        Constant {
+            index: 8
         },
         GetLocal {
             index: 1,
             frame: 0
         },
-        Call {
-            args_len: 1
-        },
-        Constant {
-            index: 7
-        },
+        SetField,
         GetLocal {
-            index: 2,
+            index: 1,
             frame: 0
         },
-        Call {
-            args_len: 1
-        },
-        GetLocal {
-            index: 3,
-            frame: 0
-        },
-        Call {
-            args_len: 0
-        },
-        GetGlobal {
-            index: 1
-        },
-        Call {
-            args_len: 1
-        },
-        Pop,
-        GetLocal {
-            index: 3,
-            frame: 0
+        GetFieldImm {
+            index: 8
         },
         Call {
             args_len: 0
@@ -118,378 +183,1165 @@ Chunk: Chunk {
         Embedded(
             "number"
         ),
+        Str(
+            "push"
+        ),
+        Str(
+            "top"
+        ),
+        Int(
+            1
+        ),
+        Str(
+            "pop"
+        ),
+        Int(
+            1
+        ),
+        Int(
+            0
+        ),
         Int(
             5
         ),
         Int(
-            4
-        ),
-        Int(
-            5
+            10
         )
     ],
     prototypes: [
         FuncProto {
-            code_start: 3,
-            args_len: 0,
-            upvalues: [
-                UpValueDesc {
-                    index: 0,
-                    is_this: false
-                },
-                UpValueDesc {
-                    index: 1,
-                    is_this: false
-                }
-            ]
-        },
-        FuncProto {
-            code_start: 2,
-            args_len: 1,
-            upvalues: [
-                UpValueDesc {
-                    index: 0,
-                    is_this: false
-                },
-                UpValueDesc {
-                    index: 0,
-                    is_this: true
-                }
-            ]
-        },
-        FuncProto {
             code_start: 1,
+            args_len: 2,
+            upvalues: []
+        },
+        FuncProto {
+            code_start: 19,
             args_len: 1,
-            upvalues: [
-                UpValueDesc {
-                    index: 0,
-                    is_this: true
-                }
-            ]
+            upvalues: []
         }
     ]
 }
 
 0: Constant { index: 5 }
 1: Jump { offset: 16 }
-2: Jump { offset: 11 }
-3: Jump { offset: 6 }
-4: GetUpval { index: 0 }
-5: GetUpval { index: 1 }
-6: Bin(Add)
-7: Return { return_value: true }
-8: Return { return_value: false }
-9: FuncDef { proto_index: 0 }
-10: Return { return_value: true }
-11: Pop
-12: Return { return_value: false }
-13: FuncDef { proto_index: 1 }
-14: Return { return_value: true }
+2: GetLocal { index: 0, frame: 1 }
+3: GetLocal { index: 1, frame: 1 }
+4: GetFieldImm { index: 6 }
+5: GetLocal { index: 1, frame: 1 }
+6: SetField
+7: GetLocal { index: 1, frame: 1 }
+8: GetFieldImm { index: 6 }
+9: Constant { index: 7 }
+10: Bin(Add)
+11: Constant { index: 6 }
+12: GetLocal { index: 1, frame: 1 }
+13: SetField
+14: Pop
 15: Pop
 16: Return { return_value: false }
-17: FuncDef { proto_index: 2 }
-18: Constant { index: 6 }
-19: GetLocal { index: 1, frame: 0 }
-20: Call { args_len: 1 }
-21: Constant { index: 7 }
-22: GetLocal { index: 2, frame: 0 }
-23: Call { args_len: 1 }
-24: GetLocal { index: 3, frame: 0 }
-25: Call { args_len: 0 }
-26: GetGlobal { index: 1 }
-27: Call { args_len: 1 }
-28: Pop
-29: GetLocal { index: 3, frame: 0 }
-30: Call { args_len: 0 }
-31: GetGlobal { index: 1 }
-32: Call { args_len: 1 }
-33: Pop
-34: Return { return_value: false }
+17: FuncDef { proto_index: 0 }
+18: Constant { index: 8 }
+19: Jump { offset: 15 }
+20: GetLocal { index: 0, frame: 1 }
+21: GetFieldImm { index: 6 }
+22: Constant { index: 9 }
+23: Bin(Sub)
+24: Constant { index: 6 }
+25: GetLocal { index: 0, frame: 1 }
+26: SetField
+27: GetLocal { index: 0, frame: 1 }
+28: GetLocal { index: 0, frame: 1 }
+29: GetFieldImm { index: 6 }
+30: GetField
+31: Return { return_value: true }
+32: Pop
+33: Return { return_value: false }
+34: FuncDef { proto_index: 1 }
+35: Constant { index: 6 }
+36: Constant { index: 10 }
+37: InitTable { len: 3, has_keys: true }
+38: Constant { index: 11 }
+39: GetLocal { index: 0, frame: 0 }
+40: GetMethodImm { index: 5 }
+41: Call { args_len: 1 }
+42: Pop
+43: Constant { index: 12 }
+44: InitTable { len: 1, has_keys: false }
+45: GetLocal { index: 0, frame: 0 }
+46: GetMethodImm { index: 8 }
+47: Constant { index: 8 }
+48: GetLocal { index: 1, frame: 0 }
+49: SetField
+50: GetLocal { index: 1, frame: 0 }
+51: GetFieldImm { index: 8 }
+52: Call { args_len: 0 }
+53: GetGlobal { index: 1 }
+54: Call { args_len: 1 }
+55: Pop
+56: Return { return_value: false }
+pc: 0, instr: Constant { index: 5 }
 **********Call stack**********
 Frame { pc: 1, stack_top: 0, upvalues: [] }
 **********STACK LEN: 1**********
-5
+push
 **********STACK END**********
+pc: 1, instr: Jump { offset: 16 }
 **********Call stack**********
 Frame { pc: 17, stack_top: 0, upvalues: [] }
 **********STACK LEN: 1**********
-5
+push
 **********STACK END**********
+pc: 17, instr: FuncDef { proto_index: 0 }
 **********Call stack**********
 Frame { pc: 18, stack_top: 0, upvalues: [] }
 **********STACK LEN: 2**********
-5
-fn(1 args args)
+push
+fn(2 args args)
 **********STACK END**********
+pc: 18, instr: Constant { index: 8 }
 **********Call stack**********
 Frame { pc: 19, stack_top: 0, upvalues: [] }
 **********STACK LEN: 3**********
-5
-fn(1 args args)
-4
+push
+fn(2 args args)
+pop
 **********STACK END**********
-**********Call stack**********
-Frame { pc: 20, stack_top: 0, upvalues: [] }
-**********STACK LEN: 4**********
-5
-fn(1 args args)
-4
-fn(1 args args)
-**********STACK END**********
-**********Call stack**********
-Frame { pc: 20, stack_top: 0, upvalues: [] }
-Frame { pc: 2, stack_top: 2, upvalues: [This { index: 0 }] }
-**********STACK LEN: 3**********
-5
-fn(1 args args)
-4
-**********STACK END**********
-**********Call stack**********
-Frame { pc: 20, stack_top: 0, upvalues: [] }
-Frame { pc: 13, stack_top: 2, upvalues: [This { index: 0 }] }
-**********STACK LEN: 3**********
-5
-fn(1 args args)
-4
-**********STACK END**********
-**********Call stack**********
-Frame { pc: 20, stack_top: 0, upvalues: [] }
-Frame { pc: 14, stack_top: 2, upvalues: [This { index: 0 }] }
-**********STACK LEN: 4**********
-5
-fn(1 args args)
-4
-fn(1 args args)
-**********STACK END**********
-**********Call stack**********
-Frame { pc: 21, stack_top: 0, upvalues: [] }
-**********STACK LEN: 3**********
-5
-fn(1 args args)
-fn(1 args args)
-**********STACK END**********
-**********Call stack**********
-Frame { pc: 22, stack_top: 0, upvalues: [] }
-**********STACK LEN: 4**********
-5
-fn(1 args args)
-fn(1 args args)
-5
-**********STACK END**********
-**********Call stack**********
-Frame { pc: 23, stack_top: 0, upvalues: [] }
-**********STACK LEN: 5**********
-5
-fn(1 args args)
-fn(1 args args)
-5
-fn(1 args args)
-**********STACK END**********
-**********Call stack**********
-Frame { pc: 23, stack_top: 0, upvalues: [] }
-Frame { pc: 3, stack_top: 3, upvalues: [Closed(Int(4)), This { index: 0 }] }
-**********STACK LEN: 4**********
-5
-fn(1 args args)
-fn(1 args args)
-5
-**********STACK END**********
-**********Call stack**********
-Frame { pc: 23, stack_top: 0, upvalues: [] }
-Frame { pc: 9, stack_top: 3, upvalues: [Closed(Int(4)), This { index: 0 }] }
-**********STACK LEN: 4**********
-5
-fn(1 args args)
-fn(1 args args)
-5
-**********STACK END**********
-**********Call stack**********
-Frame { pc: 23, stack_top: 0, upvalues: [] }
-Frame { pc: 10, stack_top: 3, upvalues: [Closed(Int(4)), This { index: 0 }] }
-**********STACK LEN: 5**********
-5
-fn(1 args args)
-fn(1 args args)
-5
-fn(0 args args)
-**********STACK END**********
-**********Call stack**********
-Frame { pc: 24, stack_top: 0, upvalues: [] }
-**********STACK LEN: 4**********
-5
-fn(1 args args)
-fn(1 args args)
-fn(0 args args)
-**********STACK END**********
-**********Call stack**********
-Frame { pc: 25, stack_top: 0, upvalues: [] }
-**********STACK LEN: 5**********
-5
-fn(1 args args)
-fn(1 args args)
-fn(0 args args)
-fn(0 args args)
-**********STACK END**********
-**********Call stack**********
-Frame { pc: 25, stack_top: 0, upvalues: [] }
-Frame { pc: 4, stack_top: 4, upvalues: [Closed(Int(4)), Closed(Int(5))] }
-**********STACK LEN: 4**********
-5
-fn(1 args args)
-fn(1 args args)
-fn(0 args args)
-**********STACK END**********
-**********Call stack**********
-Frame { pc: 25, stack_top: 0, upvalues: [] }
-Frame { pc: 5, stack_top: 4, upvalues: [Closed(Int(4)), Closed(Int(5))] }
-**********STACK LEN: 5**********
-5
-fn(1 args args)
-fn(1 args args)
-fn(0 args args)
-4
-**********STACK END**********
-**********Call stack**********
-Frame { pc: 25, stack_top: 0, upvalues: [] }
-Frame { pc: 6, stack_top: 4, upvalues: [Closed(Int(4)), Closed(Int(5))] }
-**********STACK LEN: 6**********
-5
-fn(1 args args)
-fn(1 args args)
-fn(0 args args)
-4
-5
-**********STACK END**********
-**********Call stack**********
-Frame { pc: 25, stack_top: 0, upvalues: [] }
-Frame { pc: 7, stack_top: 4, upvalues: [Closed(Int(4)), Closed(Int(5))] }
-**********STACK LEN: 5**********
-5
-fn(1 args args)
-fn(1 args args)
-fn(0 args args)
-9
-**********STACK END**********
-**********Call stack**********
-Frame { pc: 26, stack_top: 0, upvalues: [] }
-**********STACK LEN: 5**********
-5
-fn(1 args args)
-fn(1 args args)
-fn(0 args args)
-9
-**********STACK END**********
-**********Call stack**********
-Frame { pc: 27, stack_top: 0, upvalues: [] }
-**********STACK LEN: 6**********
-5
-fn(1 args args)
-fn(1 args args)
-fn(0 args args)
-9
-native fn(variadic args)
-**********STACK END**********
-9 
-**********Call stack**********
-Frame { pc: 28, stack_top: 0, upvalues: [] }
-**********STACK LEN: 5**********
-5
-fn(1 args args)
-fn(1 args args)
-fn(0 args args)
-()
-**********STACK END**********
-**********Call stack**********
-Frame { pc: 29, stack_top: 0, upvalues: [] }
-**********STACK LEN: 4**********
-5
-fn(1 args args)
-fn(1 args args)
-fn(0 args args)
-**********STACK END**********
-**********Call stack**********
-Frame { pc: 30, stack_top: 0, upvalues: [] }
-**********STACK LEN: 5**********
-5
-fn(1 args args)
-fn(1 args args)
-fn(0 args args)
-fn(0 args args)
-**********STACK END**********
-**********Call stack**********
-Frame { pc: 30, stack_top: 0, upvalues: [] }
-Frame { pc: 4, stack_top: 4, upvalues: [Closed(Int(4)), Closed(Int(5))] }
-**********STACK LEN: 4**********
-5
-fn(1 args args)
-fn(1 args args)
-fn(0 args args)
-**********STACK END**********
-**********Call stack**********
-Frame { pc: 30, stack_top: 0, upvalues: [] }
-Frame { pc: 5, stack_top: 4, upvalues: [Closed(Int(4)), Closed(Int(5))] }
-**********STACK LEN: 5**********
-5
-fn(1 args args)
-fn(1 args args)
-fn(0 args args)
-4
-**********STACK END**********
-**********Call stack**********
-Frame { pc: 30, stack_top: 0, upvalues: [] }
-Frame { pc: 6, stack_top: 4, upvalues: [Closed(Int(4)), Closed(Int(5))] }
-**********STACK LEN: 6**********
-5
-fn(1 args args)
-fn(1 args args)
-fn(0 args args)
-4
-5
-**********STACK END**********
-**********Call stack**********
-Frame { pc: 30, stack_top: 0, upvalues: [] }
-Frame { pc: 7, stack_top: 4, upvalues: [Closed(Int(4)), Closed(Int(5))] }
-**********STACK LEN: 5**********
-5
-fn(1 args args)
-fn(1 args args)
-fn(0 args args)
-9
-**********STACK END**********
-**********Call stack**********
-Frame { pc: 31, stack_top: 0, upvalues: [] }
-**********STACK LEN: 5**********
-5
-fn(1 args args)
-fn(1 args args)
-fn(0 args args)
-9
-**********STACK END**********
-**********Call stack**********
-Frame { pc: 32, stack_top: 0, upvalues: [] }
-**********STACK LEN: 6**********
-5
-fn(1 args args)
-fn(1 args args)
-fn(0 args args)
-9
-native fn(variadic args)
-**********STACK END**********
-9 
-**********Call stack**********
-Frame { pc: 33, stack_top: 0, upvalues: [] }
-**********STACK LEN: 5**********
-5
-fn(1 args args)
-fn(1 args args)
-fn(0 args args)
-()
-**********STACK END**********
+pc: 19, instr: Jump { offset: 15 }
 **********Call stack**********
 Frame { pc: 34, stack_top: 0, upvalues: [] }
+**********STACK LEN: 3**********
+push
+fn(2 args args)
+pop
+**********STACK END**********
+pc: 34, instr: FuncDef { proto_index: 1 }
+**********Call stack**********
+Frame { pc: 35, stack_top: 0, upvalues: [] }
 **********STACK LEN: 4**********
+push
+fn(2 args args)
+pop
+fn(1 args args)
+**********STACK END**********
+pc: 35, instr: Constant { index: 6 }
+**********Call stack**********
+Frame { pc: 36, stack_top: 0, upvalues: [] }
+**********STACK LEN: 5**********
+push
+fn(2 args args)
+pop
+fn(1 args args)
+top
+**********STACK END**********
+pc: 36, instr: Constant { index: 10 }
+**********Call stack**********
+Frame { pc: 37, stack_top: 0, upvalues: [] }
+**********STACK LEN: 6**********
+push
+fn(2 args args)
+pop
+fn(1 args args)
+top
+0
+**********STACK END**********
+pc: 37, instr: InitTable { len: 3, has_keys: true }
+**********Call stack**********
+Frame { pc: 38, stack_top: 0, upvalues: [] }
+**********STACK LEN: 1**********
+{
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+**********STACK END**********
+pc: 38, instr: Constant { index: 11 }
+**********Call stack**********
+Frame { pc: 39, stack_top: 0, upvalues: [] }
+**********STACK LEN: 2**********
+{
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+5
+**********STACK END**********
+pc: 39, instr: GetLocal { index: 0, frame: 0 }
+**********Call stack**********
+Frame { pc: 40, stack_top: 0, upvalues: [] }
+**********STACK LEN: 3**********
+{
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+5
+{
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+**********STACK END**********
+pc: 40, instr: GetMethodImm { index: 5 }
+**********Call stack**********
+Frame { pc: 41, stack_top: 0, upvalues: [] }
+**********STACK LEN: 3**********
+{
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
 5
 fn(1 args args)
-fn(1 args args)
+**********STACK END**********
+pc: 41, instr: Call { args_len: 1 }
+**********Call stack**********
+Frame { pc: 41, stack_top: 0, upvalues: [] }
+Frame { pc: 2, stack_top: 1, upvalues: [] }
+**********STACK LEN: 3**********
+{
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+5
+{
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+**********STACK END**********
+pc: 2, instr: GetLocal { index: 0, frame: 1 }
+**********Call stack**********
+Frame { pc: 41, stack_top: 0, upvalues: [] }
+Frame { pc: 3, stack_top: 1, upvalues: [] }
+**********STACK LEN: 4**********
+{
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+5
+{
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+5
+**********STACK END**********
+pc: 3, instr: GetLocal { index: 1, frame: 1 }
+**********Call stack**********
+Frame { pc: 41, stack_top: 0, upvalues: [] }
+Frame { pc: 4, stack_top: 1, upvalues: [] }
+**********STACK LEN: 5**********
+{
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+5
+{
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+5
+{
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+**********STACK END**********
+pc: 4, instr: GetFieldImm { index: 6 }
+**********Call stack**********
+Frame { pc: 41, stack_top: 0, upvalues: [] }
+Frame { pc: 5, stack_top: 1, upvalues: [] }
+**********STACK LEN: 5**********
+{
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+5
+{
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+5
+0
+**********STACK END**********
+pc: 5, instr: GetLocal { index: 1, frame: 1 }
+**********Call stack**********
+Frame { pc: 41, stack_top: 0, upvalues: [] }
+Frame { pc: 6, stack_top: 1, upvalues: [] }
+**********STACK LEN: 6**********
+{
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+5
+{
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+5
+0
+{
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+**********STACK END**********
+pc: 6, instr: SetField
+**********Call stack**********
+Frame { pc: 41, stack_top: 0, upvalues: [] }
+Frame { pc: 7, stack_top: 1, upvalues: [] }
+**********STACK LEN: 3**********
+{
+	0: 5
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+5
+{
+	0: 5
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+**********STACK END**********
+pc: 7, instr: GetLocal { index: 1, frame: 1 }
+**********Call stack**********
+Frame { pc: 41, stack_top: 0, upvalues: [] }
+Frame { pc: 8, stack_top: 1, upvalues: [] }
+**********STACK LEN: 4**********
+{
+	0: 5
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+5
+{
+	0: 5
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+{
+	0: 5
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+**********STACK END**********
+pc: 8, instr: GetFieldImm { index: 6 }
+**********Call stack**********
+Frame { pc: 41, stack_top: 0, upvalues: [] }
+Frame { pc: 9, stack_top: 1, upvalues: [] }
+**********STACK LEN: 4**********
+{
+	0: 5
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+5
+{
+	0: 5
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+0
+**********STACK END**********
+pc: 9, instr: Constant { index: 7 }
+**********Call stack**********
+Frame { pc: 41, stack_top: 0, upvalues: [] }
+Frame { pc: 10, stack_top: 1, upvalues: [] }
+**********STACK LEN: 5**********
+{
+	0: 5
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+5
+{
+	0: 5
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+0
+1
+**********STACK END**********
+pc: 10, instr: Bin(Add)
+**********Call stack**********
+Frame { pc: 41, stack_top: 0, upvalues: [] }
+Frame { pc: 11, stack_top: 1, upvalues: [] }
+**********STACK LEN: 4**********
+{
+	0: 5
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+5
+{
+	0: 5
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+1
+**********STACK END**********
+pc: 11, instr: Constant { index: 6 }
+**********Call stack**********
+Frame { pc: 41, stack_top: 0, upvalues: [] }
+Frame { pc: 12, stack_top: 1, upvalues: [] }
+**********STACK LEN: 5**********
+{
+	0: 5
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+5
+{
+	0: 5
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+1
+top
+**********STACK END**********
+pc: 12, instr: GetLocal { index: 1, frame: 1 }
+**********Call stack**********
+Frame { pc: 41, stack_top: 0, upvalues: [] }
+Frame { pc: 13, stack_top: 1, upvalues: [] }
+**********STACK LEN: 6**********
+{
+	0: 5
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+5
+{
+	0: 5
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+1
+top
+{
+	0: 5
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+**********STACK END**********
+pc: 13, instr: SetField
+**********Call stack**********
+Frame { pc: 41, stack_top: 0, upvalues: [] }
+Frame { pc: 14, stack_top: 1, upvalues: [] }
+**********STACK LEN: 3**********
+{
+	0: 5
+	top: 1
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+5
+{
+	0: 5
+	top: 1
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+**********STACK END**********
+pc: 14, instr: Pop
+**********Call stack**********
+Frame { pc: 41, stack_top: 0, upvalues: [] }
+Frame { pc: 15, stack_top: 1, upvalues: [] }
+**********STACK LEN: 2**********
+{
+	0: 5
+	top: 1
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+5
+**********STACK END**********
+pc: 15, instr: Pop
+**********Call stack**********
+Frame { pc: 41, stack_top: 0, upvalues: [] }
+Frame { pc: 16, stack_top: 1, upvalues: [] }
+**********STACK LEN: 1**********
+{
+	0: 5
+	top: 1
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+**********STACK END**********
+pc: 16, instr: Return { return_value: false }
+**********Call stack**********
+Frame { pc: 42, stack_top: 0, upvalues: [] }
+**********STACK LEN: 2**********
+{
+	0: 5
+	top: 1
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+()
+**********STACK END**********
+pc: 42, instr: Pop
+**********Call stack**********
+Frame { pc: 43, stack_top: 0, upvalues: [] }
+**********STACK LEN: 1**********
+{
+	0: 5
+	top: 1
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+**********STACK END**********
+pc: 43, instr: Constant { index: 12 }
+**********Call stack**********
+Frame { pc: 44, stack_top: 0, upvalues: [] }
+**********STACK LEN: 2**********
+{
+	0: 5
+	top: 1
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+10
+**********STACK END**********
+pc: 44, instr: InitTable { len: 1, has_keys: false }
+**********Call stack**********
+Frame { pc: 45, stack_top: 0, upvalues: [] }
+**********STACK LEN: 2**********
+{
+	0: 5
+	top: 1
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+{
+	0: 10
+}
+
+**********STACK END**********
+pc: 45, instr: GetLocal { index: 0, frame: 0 }
+**********Call stack**********
+Frame { pc: 46, stack_top: 0, upvalues: [] }
+**********STACK LEN: 3**********
+{
+	0: 5
+	top: 1
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+{
+	0: 10
+}
+
+{
+	0: 5
+	top: 1
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+**********STACK END**********
+pc: 46, instr: GetMethodImm { index: 8 }
+**********Call stack**********
+Frame { pc: 47, stack_top: 0, upvalues: [] }
+**********STACK LEN: 3**********
+{
+	0: 5
+	top: 1
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+{
+	0: 10
+}
+
 fn(0 args args)
 **********STACK END**********
+pc: 47, instr: Constant { index: 8 }
+**********Call stack**********
+Frame { pc: 48, stack_top: 0, upvalues: [] }
+**********STACK LEN: 4**********
+{
+	0: 5
+	top: 1
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+{
+	0: 10
+}
+
+fn(0 args args)
+pop
+**********STACK END**********
+pc: 48, instr: GetLocal { index: 1, frame: 0 }
+**********Call stack**********
+Frame { pc: 49, stack_top: 0, upvalues: [] }
+**********STACK LEN: 5**********
+{
+	0: 5
+	top: 1
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+{
+	0: 10
+}
+
+fn(0 args args)
+pop
+{
+	0: 10
+}
+
+**********STACK END**********
+pc: 49, instr: SetField
+**********Call stack**********
+Frame { pc: 50, stack_top: 0, upvalues: [] }
+**********STACK LEN: 2**********
+{
+	0: 5
+	top: 1
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+{
+	pop: fn(0 args args)
+	0: 10
+}
+
+**********STACK END**********
+pc: 50, instr: GetLocal { index: 1, frame: 0 }
+**********Call stack**********
+Frame { pc: 51, stack_top: 0, upvalues: [] }
+**********STACK LEN: 3**********
+{
+	0: 5
+	top: 1
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+{
+	pop: fn(0 args args)
+	0: 10
+}
+
+{
+	pop: fn(0 args args)
+	0: 10
+}
+
+**********STACK END**********
+pc: 51, instr: GetFieldImm { index: 8 }
+**********Call stack**********
+Frame { pc: 52, stack_top: 0, upvalues: [] }
+**********STACK LEN: 3**********
+{
+	0: 5
+	top: 1
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+{
+	pop: fn(0 args args)
+	0: 10
+}
+
+fn(0 args args)
+**********STACK END**********
+pc: 52, instr: Call { args_len: 0 }
+**********Call stack**********
+Frame { pc: 52, stack_top: 0, upvalues: [] }
+Frame { pc: 20, stack_top: 2, upvalues: [] }
+**********STACK LEN: 3**********
+{
+	0: 5
+	top: 1
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+{
+	pop: fn(0 args args)
+	0: 10
+}
+
+{
+	0: 5
+	top: 1
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+**********STACK END**********
+pc: 20, instr: GetLocal { index: 0, frame: 1 }
+**********Call stack**********
+Frame { pc: 52, stack_top: 0, upvalues: [] }
+Frame { pc: 21, stack_top: 2, upvalues: [] }
+**********STACK LEN: 4**********
+{
+	0: 5
+	top: 1
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+{
+	pop: fn(0 args args)
+	0: 10
+}
+
+{
+	0: 5
+	top: 1
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+{
+	0: 5
+	top: 1
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+**********STACK END**********
+pc: 21, instr: GetFieldImm { index: 6 }
+**********Call stack**********
+Frame { pc: 52, stack_top: 0, upvalues: [] }
+Frame { pc: 22, stack_top: 2, upvalues: [] }
+**********STACK LEN: 4**********
+{
+	0: 5
+	top: 1
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+{
+	pop: fn(0 args args)
+	0: 10
+}
+
+{
+	0: 5
+	top: 1
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+1
+**********STACK END**********
+pc: 22, instr: Constant { index: 9 }
+**********Call stack**********
+Frame { pc: 52, stack_top: 0, upvalues: [] }
+Frame { pc: 23, stack_top: 2, upvalues: [] }
+**********STACK LEN: 5**********
+{
+	0: 5
+	top: 1
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+{
+	pop: fn(0 args args)
+	0: 10
+}
+
+{
+	0: 5
+	top: 1
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+1
+1
+**********STACK END**********
+pc: 23, instr: Bin(Sub)
+**********Call stack**********
+Frame { pc: 52, stack_top: 0, upvalues: [] }
+Frame { pc: 24, stack_top: 2, upvalues: [] }
+**********STACK LEN: 4**********
+{
+	0: 5
+	top: 1
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+{
+	pop: fn(0 args args)
+	0: 10
+}
+
+{
+	0: 5
+	top: 1
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+0
+**********STACK END**********
+pc: 24, instr: Constant { index: 6 }
+**********Call stack**********
+Frame { pc: 52, stack_top: 0, upvalues: [] }
+Frame { pc: 25, stack_top: 2, upvalues: [] }
+**********STACK LEN: 5**********
+{
+	0: 5
+	top: 1
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+{
+	pop: fn(0 args args)
+	0: 10
+}
+
+{
+	0: 5
+	top: 1
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+0
+top
+**********STACK END**********
+pc: 25, instr: GetLocal { index: 0, frame: 1 }
+**********Call stack**********
+Frame { pc: 52, stack_top: 0, upvalues: [] }
+Frame { pc: 26, stack_top: 2, upvalues: [] }
+**********STACK LEN: 6**********
+{
+	0: 5
+	top: 1
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+{
+	pop: fn(0 args args)
+	0: 10
+}
+
+{
+	0: 5
+	top: 1
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+0
+top
+{
+	0: 5
+	top: 1
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+**********STACK END**********
+pc: 26, instr: SetField
+**********Call stack**********
+Frame { pc: 52, stack_top: 0, upvalues: [] }
+Frame { pc: 27, stack_top: 2, upvalues: [] }
+**********STACK LEN: 3**********
+{
+	0: 5
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+{
+	pop: fn(0 args args)
+	0: 10
+}
+
+{
+	0: 5
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+**********STACK END**********
+pc: 27, instr: GetLocal { index: 0, frame: 1 }
+**********Call stack**********
+Frame { pc: 52, stack_top: 0, upvalues: [] }
+Frame { pc: 28, stack_top: 2, upvalues: [] }
+**********STACK LEN: 4**********
+{
+	0: 5
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+{
+	pop: fn(0 args args)
+	0: 10
+}
+
+{
+	0: 5
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+{
+	0: 5
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+**********STACK END**********
+pc: 28, instr: GetLocal { index: 0, frame: 1 }
+**********Call stack**********
+Frame { pc: 52, stack_top: 0, upvalues: [] }
+Frame { pc: 29, stack_top: 2, upvalues: [] }
+**********STACK LEN: 5**********
+{
+	0: 5
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+{
+	pop: fn(0 args args)
+	0: 10
+}
+
+{
+	0: 5
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+{
+	0: 5
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+{
+	0: 5
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+**********STACK END**********
+pc: 29, instr: GetFieldImm { index: 6 }
+**********Call stack**********
+Frame { pc: 52, stack_top: 0, upvalues: [] }
+Frame { pc: 30, stack_top: 2, upvalues: [] }
+**********STACK LEN: 5**********
+{
+	0: 5
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+{
+	pop: fn(0 args args)
+	0: 10
+}
+
+{
+	0: 5
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+{
+	0: 5
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+0
+**********STACK END**********
+pc: 30, instr: GetField
+**********Call stack**********
+Frame { pc: 52, stack_top: 0, upvalues: [] }
+Frame { pc: 31, stack_top: 2, upvalues: [] }
+**********STACK LEN: 4**********
+{
+	0: 5
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+{
+	pop: fn(0 args args)
+	0: 10
+}
+
+{
+	0: 5
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+5
+**********STACK END**********
+pc: 31, instr: Return { return_value: true }
+**********Call stack**********
+Frame { pc: 53, stack_top: 0, upvalues: [] }
+**********STACK LEN: 3**********
+{
+	0: 5
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+{
+	pop: fn(0 args args)
+	0: 10
+}
+
+5
+**********STACK END**********
+pc: 53, instr: GetGlobal { index: 1 }
+**********Call stack**********
+Frame { pc: 54, stack_top: 0, upvalues: [] }
+**********STACK LEN: 4**********
+{
+	0: 5
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+{
+	pop: fn(0 args args)
+	0: 10
+}
+
+5
+native fn(variadic args)
+**********STACK END**********
+pc: 54, instr: Call { args_len: 1 }
+5 
+**********Call stack**********
+Frame { pc: 55, stack_top: 0, upvalues: [] }
+**********STACK LEN: 3**********
+{
+	0: 5
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+{
+	pop: fn(0 args args)
+	0: 10
+}
+
+()
+**********STACK END**********
+pc: 55, instr: Pop
+**********Call stack**********
+Frame { pc: 56, stack_top: 0, upvalues: [] }
+**********STACK LEN: 2**********
+{
+	0: 5
+	top: 0
+	pop: fn(1 args args)
+	push: fn(2 args args)
+}
+
+{
+	pop: fn(0 args args)
+	0: 10
+}
+
+**********STACK END**********
+pc: 56, instr: Return { return_value: false }

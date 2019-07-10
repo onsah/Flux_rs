@@ -1,0 +1,2 @@
+* Functions either method or not
+* If a function is method stack pointer of frame starts one higher because 'self' is already pushed to the stack

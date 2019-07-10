@@ -74,3 +74,34 @@ fn closure_works() {
 
     assert_eq!(vm.run(chunk), Ok(Value::Int(15)));
 }
+
+#[test]
+fn method_works() {
+    let source = "let obj = {
+        \"setX\" = fn(x, self)
+            self.x = x
+        end,
+        \"getX\" = fn(self)
+            return self.x
+        end,
+        \"setXLater\" = fn(x, self) 
+            return fn()
+                self.x = x
+            end
+        end
+    }
+    obj:setX(10)
+    let setLater = obj:setXLater(5)
+    let oldX = obj:getX();
+    setLater()
+    return (oldX, obj:getX())";
+    let mut parser = Parser::new(source).unwrap();
+    let ast = parser.parse().unwrap();
+    let chunk = Compiler::compile(ast).unwrap();
+    let mut vm = Vm::new();
+
+    assert_eq!(vm.run(chunk), Ok(Value::Tuple(vec![
+        Value::Int(10),
+        Value::Int(5)
+    ])));
+}

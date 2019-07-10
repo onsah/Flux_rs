@@ -77,14 +77,16 @@ impl Chunk {
             .iter()
             .enumerate()
             .find_map(|(i, s)| match s {
-                Value::Str(s) => match **s == string {
-                    true => Some(i as u8),
-                    false => None,
+                Value::Str(s) => if **s == string {
+                    Some(i as u8)
+                } else {
+                    None
                 },
-                Value::Embedded(s) => match *s == string {
-                    true => Some(i as u8),
-                    false => None,
-                },
+                Value::Embedded(s) => if *s == string {
+                    Some(i as u8)
+                } else {
+                    None
+                }
                 _ => None,
             })
     }

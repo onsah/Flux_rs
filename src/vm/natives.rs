@@ -4,12 +4,13 @@ use super::Value;
 use super::value::{Function, NativeFunction, ArgsLen};
 use crate::vm::RuntimeError;
 
-pub const PREDEFINED_CONSTANTS: [(&'static str, Value); 5] = [
+pub const PREDEFINED_CONSTANTS: [(&str, Value); 6] = [
     ("print", PRINT),
     ("println", PRINTLN),
     ("readline", READLINE),
     ("int", INT),
-    ("number", NUMBER)
+    ("number", NUMBER),
+    ("assert", ASSERT)
 ];
 
 macro_rules! define_native {
@@ -27,7 +28,7 @@ define_native! {
         let mut args_iter = args.into_iter().rev();
         if let Some(arg) = args_iter.next() {
             print!("{}", arg);
-            while let Some(arg) = args_iter.next() {
+            for arg in args_iter {
                 print!(" {}", arg);
             }
         }
@@ -109,6 +110,19 @@ define_native! {
             Value::Int(i) => Ok(Value::Int(*i)),
             Value::Number(i) => Ok(Value::Number(*i)),
             _ => Err(RuntimeError::TypeError),
+        }
+    },
+    ArgsLen::Exact(0)
+}
+
+define_native! {
+    ASSERT,
+    |args| {
+        let value = &args[0];
+        if value.as_bool() {
+            Ok(Value::Unit)
+        } else {
+            panic!("Assertion failed");
         }
     },
     ArgsLen::Exact(0)

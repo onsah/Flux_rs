@@ -43,19 +43,17 @@ where
     }
 
     pub fn statement(&mut self) -> Result<Statement> {
-        if let Ok(_) = self.match_token(TokenType::Let) {
+        if self.match_token(TokenType::Let).is_ok() {
             self.let_stmt()
-        } else if let Ok(_) = self.match_token(TokenType::If) {
+        } else if self.match_token(TokenType::If).is_ok() {
             self.if_stmt()
-        } else if let Ok(_) = self.match_token(TokenType::Do) {
+        } else if self.match_token(TokenType::Do).is_ok() {
             let stmt = Statement::Block(self.block_stmt()?);
             self.match_token(TokenType::End)?;
             Ok(stmt)
-        } else if let Ok(_) = self.match_token(TokenType::While) {
+        } else if self.match_token(TokenType::While).is_ok() {
             self.while_stmt()
-        } /* else if let Ok(_) = self.match_token(TokenType::Print) {
-            self.print_stmt()
-        } */ else if let Ok(_) = self.match_token(TokenType::Return) {
+        } else if self.match_token(TokenType::Return).is_ok() {
             self.return_stmt()
         } else {
             let expr = self.expr_stmt()?;
@@ -80,8 +78,8 @@ where
         let condition = self.expression()?;
         self.match_token(TokenType::Then)?;
         let then_block = Statement::Block(self.block_stmt()?);
-        if let Ok(_) = self.match_token(TokenType::Else) {
-            let else_block = if let Ok(_) = self.match_token(TokenType::If) {
+        if self.match_token(TokenType::Else).is_ok() {
+            let else_block = if self.match_token(TokenType::If).is_ok() {
                 self.if_stmt()?
             } else {
                 let block = self.block_stmt()?;
@@ -154,7 +152,7 @@ where
 
     fn assignment(&mut self) -> Result<Expr> {
         let left = self.comparasion()?;
-        if let Ok(_) = self.match_token(TokenType::Equal) {
+        if self.match_token(TokenType::Equal).is_ok() {
             let right = self.comparasion()?;
             let _ = self.match_token(TokenType::Semicolon);
             Ok(Expr::Set {
@@ -243,6 +241,7 @@ where
         let mut expr = self.primary()?;
         while let Ok(token) = self
             .match_token(TokenType::Dot)
+            .or_else(|_| self.match_token(TokenType::Colon))
             .or_else(|_| self.match_token(TokenType::LeftBracket))
             .or_else(|_| self.match_token(TokenType::LeftParen))
         {
@@ -254,6 +253,14 @@ where
                         table: Box::new(expr),
                         field: Box::new(Expr::Literal(Literal::Str(name))),
                     };
+                }
+                TokenType::Colon => {
+                    let token = self.match_token(TokenType::Identifier)?;
+                    let name = token.text().to_string();
+                    expr = Expr::SelfAccess {
+                        table: Box::new(expr),
+                        field: name,
+                    }
                 }
                 TokenType::LeftBracket => {
                     let access_expr = self.expression()?;
@@ -316,7 +323,7 @@ where
     #[inline]
     fn grouping(&mut self) -> Result<Expr> {
         let expr = self.expression()?;
-        if let Ok(_) = self.match_token(TokenType::Comma) {
+        if self.match_token(TokenType::Comma).is_ok() {
             self.tuple(expr)
         } else {
             self.match_token(TokenType::RightParen)?;
@@ -327,7 +334,7 @@ where
     fn tuple(&mut self, first_expr: Expr) -> Result<Expr> {
         let second_expr = self.expression()?;
         let mut elems = vec![first_expr, second_expr];
-        while let Ok(_) = self.match_token(TokenType::Comma) {
+        while self.match_token(TokenType::Comma).is_ok() {
             let expr = self.expression()?;
             elems.push(expr);
         }
@@ -350,7 +357,7 @@ where
                 }
             }
         };
-        while let Ok(_) = self.match_token(TokenType::Comma) {
+        while self.match_token(TokenType::Comma).is_ok() {
             if let Some(keys) = keys.as_mut() {
                 let expr = self.expression()?;
                 match expr {
@@ -377,7 +384,7 @@ where
         self.match_token(TokenType::LeftParen)?;
         if let Ok(token) = self.match_token(TokenType::Identifier) {
             args.push(token.extract_text());
-            while let Err(_) = self.match_token(TokenType::RightParen) {
+            while self.match_token(TokenType::RightParen).is_err() {
                 self.match_token(TokenType::Comma)?;
                 let name = self.match_token(TokenType::Identifier)?;
                 args.push(name.extract_text());

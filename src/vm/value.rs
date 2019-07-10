@@ -5,7 +5,7 @@ use std::fmt::{self, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
-pub use function::{Function, NativeFunction, ArgsLen, UpValue};
+pub use function::{Function, UserFunction, NativeFunction, ArgsLen, UpValue};
 pub use table::Table;
 
 mod function;
@@ -51,11 +51,35 @@ impl Value {
         }
     }
 
-    pub fn to_bool(&self) -> bool {
+    pub fn as_bool(&self) -> bool {
         match self {
             Value::Bool(b) => *b,
             Value::Nil => false,
             _ => true,
+        }
+    }
+
+    pub fn is_user_fn(&self) -> bool {
+        match self {
+            Value::Function(function) => {
+                match function {
+                    Function::User(_) => true,
+                    _ => false,
+                }
+            }
+            _ => false,
+        }
+    }
+
+    pub fn to_user_fn(self) -> RuntimeResult<UserFunction> {
+        match self {
+            Value::Function(function) => {
+                match function {
+                    Function::User(f) => Ok(f),
+                    _ => Err(RuntimeError::TypeError),
+                }
+            }
+            _ => Err(RuntimeError::TypeError),
         }
     }
 }
@@ -177,6 +201,13 @@ impl Display for Value {
             Value::Unit => write!(f, "()"),
             Value::Embedded(string) => write!(f, "{}", string),
         }
+    }
+}
+
+
+impl From<Rc<RefCell<Table>>> for Value {
+    fn from(table: Rc<RefCell<Table>>) -> Self {
+        Value::Table(table)
     }
 }
 

@@ -64,38 +64,33 @@ impl Vm {
                 }
                 Instruction::Return { return_value } => {
                     // println!("Call Stack:\n{:?}", self.frames);
-                    let mut value = match return_value {
-                        true => self.pop_stack()?,
-                        false => Value::Unit,
+                    let mut value = if return_value {
+                        self.pop_stack()?
+                    } else {
+                        Value::Unit
                     };
-                    match &mut value {
-                        Value::Function(function) => {
-                            if let Function::User(func) = function {
-                                let frame = self.current_frame().unwrap();
-                                // Closure upvalues that will be dropped
-                                for upval in func.upvalues_mut() {
-                                    match upval {
-                                        UpValue::Open { index } => {
-                                            match &frame.upvalues[*index as usize] {
-                                                UpValue::This { index } => {
-                                                    let index = frame.stack_top + *index as usize;
-                                                    let value = self.stack[index].clone();
-                                                    *upval = UpValue::Closed(value);
-                                                },
-                                                // Note: can be moved somehow since it will be dropped immediately
-                                                UpValue::Closed(value) => {
-                                                    *upval = UpValue::Closed(value.clone());
-                                                }
-                                                _ => (),
-                                            }
+                    if let Value::Function(function) = &mut value {
+                        if let Function::User(func) = function {
+                            let frame = self.current_frame().unwrap();
+                            // Closure upvalues that will be dropped
+                            for upval in func.upvalues_mut() {
+                                if let UpValue::Open { index } = upval {
+                                    match &frame.upvalues[*index as usize] {
+                                        UpValue::This { index } => {
+                                            let index = frame.stack_top + *index as usize;
+                                            let value = self.stack[index].clone();
+                                            *upval = UpValue::Closed(value);
                                         },
+                                        // Note: can be moved somehow since it will be dropped immediately
+                                        UpValue::Closed(value) => {
+                                            *upval = UpValue::Closed(value.clone());
+                                        }
                                         _ => (),
                                     }
                                 }
                             }
-                        },
-                        _ => (),
-                    } 
+                        }
+                    }
                     while self.stack.len() > self.current_frame()?.stack_top() {
                         self.pop_stack()?;
                     }
@@ -138,13 +133,14 @@ impl Vm {
                 Instruction::Jump { offset } => self.jump(offset)?,
                 Instruction::JumpIf { offset, when_true } => {
                     let value = self.pop_stack()?;
-                    if value.to_bool() == when_true {
+                    if value.as_bool() == when_true {
                         self.jump(offset)?;
                     }
                 }
                 Instruction::InitTable { len, has_keys } => self.init_table(len, has_keys)?,
                 Instruction::GetField => self.get_field()?,
                 Instruction::GetFieldImm { index } => self.get_field_imm(index)?,
+                Instruction::GetMethodImm { index } => self.get_method_imm(index)?,
                 Instruction::SetField => self.set_field()?,
                 Instruction::SetFieldImm { index } => self.set_field_imm(index)?,
                 Instruction::Print => {
@@ -160,14 +156,10 @@ impl Vm {
                     self.stack.push(tuple)
                 }
                 Instruction::FuncDef { proto_index } => {
-                    let FuncProto {
-                        code_start,
-                        args_len,
-                        upvalues
-                    } = &self.current_chunk().prototypes()[proto_index];
+                    let proto = &self.current_chunk().prototypes()[proto_index];
                     self
                     .stack
-                    .push(Value::Function(Function::new_user(*args_len, *code_start, upvalues)))
+                    .push(Value::Function(Function::new_user(proto)))
                 },
                 Instruction::Call { args_len } => {
                     let function = self.pop_stack()?;
@@ -233,6 +225,23 @@ impl Vm {
         }
     }
 
+    fn get_method_imm(&mut self, index: u8) -> RuntimeResult<()> {
+        let table = self.pop_stack()?;
+        let key = &self.current_chunk().constants()[index as usize];
+        let value = match table {
+            Value::Table(rc) => {
+                let value = {
+                    let table = rc.borrow_mut();
+                    table.get(&key).clone()
+                };
+                Ok(value.to_user_fn()?.with_this(rc).into())
+            }
+            _ => Err(RuntimeError::TypeError),
+        }?;
+        self.stack.push(value);
+        Ok(())
+    }
+
     fn set_field(&mut self) -> RuntimeResult<()> {
         let table = self.pop_stack()?;
         let key = self.pop_stack()?;
@@ -262,23 +271,20 @@ impl Vm {
     }
 
     fn init_table(&mut self, len: u16, has_keys: bool) -> RuntimeResult<()> {
-        let table = match has_keys {
-            true => {
-                let mut table = Table::new();
-                for _ in 0..len {
-                    let value = self.pop_stack()?;
-                    let key = self.pop_stack()?;
-                    table.set(key, value)
-                }
-                table
+        let table = if has_keys {
+            let mut table = Table::new();
+            for _ in 0..len {
+                let value = self.pop_stack()?;
+                let key = self.pop_stack()?;
+                table.set(key, value)
             }
-            false => {
-                let mut values = Vec::new();
-                for i in 0..len {
-                    values.push((Value::Int(i as i32), self.pop_stack()?))
-                }
-                Table::from_array(values)
+            table
+        } else {
+            let mut values = Vec::new();
+            for i in 0..len {
+                values.push((Value::Int(i as i32), self.pop_stack()?))
             }
+            Table::from_array(values)
         };
         self.stack.push(Value::Table(Rc::new(RefCell::new(table))));
         Ok(())
@@ -296,10 +302,13 @@ impl Vm {
 
     fn call(&mut self, function: Function, pushed_args: u8) -> RuntimeResult<()> {
         match function {
-            Function::User(function) => {
+            Function::User(mut function) => {
                 if pushed_args == function.args_len() {
                     let pc = function.code_start();
                     let stack_top = self.stack.len() - function.args_len() as usize;
+                    if let Some(this) = function.take_this() {
+                        self.stack.push(this.into())
+                    }
                     let upvalues = function.extract_upvalues();
                     self.frames.push(Frame::new(pc, stack_top, upvalues));
                 } else {
@@ -452,6 +461,14 @@ impl Vm {
 
     fn pop_stack(&mut self) -> RuntimeResult<Value> {
         match self.stack.pop() {
+            Some(value) => Ok(value),
+            None => Err(RuntimeError::EmptyStack),
+        }
+    }
+
+    #[allow(dead_code)]
+    fn top_stack(&self) -> RuntimeResult<&Value> {
+        match self.stack.last() {
             Some(value) => Ok(value),
             None => Err(RuntimeError::EmptyStack),
         }

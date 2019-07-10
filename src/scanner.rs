@@ -66,7 +66,10 @@ impl<'a> Scanner<'a> {
                 '+' => return Ok(self.new_token(TokenType::Plus, start, start + 1)),
                 '-' => return Ok(self.new_token(TokenType::Minus, start, start + 1)),
                 '*' => return Ok(self.new_token(TokenType::Star, start, start + 1)),
-                '/' => return Ok(self.new_token(TokenType::Slash, start, start + 1)),
+                '/' => match self.peek() {
+                    '/' => self.single_line_comment()?,
+                    _ => return Ok(self.new_token(TokenType::Slash, start, start + 1)),
+                } 
 
                 '=' => match self.peek() {
                     '=' => {
@@ -134,6 +137,12 @@ impl<'a> Scanner<'a> {
         }
     }
 
+    fn single_line_comment(&mut self) -> Result<()> {
+        self.match_char('/')?;
+        while self.match_pred(|c| c != '\n').is_ok() { }
+        Ok(())
+    }
+
     fn string(&mut self, start: usize) -> Result<Token> {
         let end = loop {
             match self.match_char('\"') {
@@ -148,16 +157,16 @@ impl<'a> Scanner<'a> {
     }
 
     fn identifier(&mut self, start: usize) -> Result<Token> {
-        let end = self.skip_while(start, |c| c.is_alphanumeric());
+        let end = self.skip_while(start, char::is_alphanumeric);
         Ok(self.new_token(TokenType::Identifier, start, end + 1))
     }
 
     fn number(&mut self, start: usize) -> Result<Token> {
-        let end = self.skip_while(start, |c| c.is_numeric());
+        let end = self.skip_while(start, char::is_numeric);
         match self.peek() {
             '.' => {
                 self.advance().unwrap();
-                let end = self.skip_while(end + 1, |c| c.is_numeric());
+                let end = self.skip_while(end + 1, char::is_numeric);
                 Ok(self.new_token(TokenType::Number, start, end + 1))
             }
             _ => Ok(self.new_token(TokenType::Number, start, end + 1)),
@@ -301,5 +310,21 @@ mod tests {
                 line: 1,
             }
         );
+    }
+
+    #[test]
+    fn comment_works() {
+        let source = "//blab bla
+        if";
+        let mut scanner = Scanner::new(source);
+        let token = scanner.scan_next().unwrap();
+        assert_eq!(
+            token,
+            Token {
+                typ: TokenType::If,
+                text: "if".to_string(),
+                line: 2
+            }
+        )
     }
 }

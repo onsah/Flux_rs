@@ -1,7 +1,9 @@
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
-use super::Value;
-use crate::compiler::UpValueDesc;
+use std::rc::Rc;
+use std::cell::RefCell;
+use super::{Value, Table};
+use crate::compiler::{UpValueDesc, FuncProto};
 use crate::vm::RuntimeResult;
 
 #[derive(Clone, Debug, Hash, PartialEq)]
@@ -15,6 +17,7 @@ pub struct UserFunction {
     args_len: u8,
     code_start: usize,
     upvalues: Vec<UpValue>,
+    this: Option<Rc<RefCell<Table>>>,
 }
 
 #[derive(Clone, Debug, Hash)]
@@ -42,8 +45,8 @@ pub enum ArgsLen {
 }
 
 impl Function {
-    pub fn new_user(args_len: u8, code_start: usize, upvalues: &[UpValueDesc]) -> Self {
-        Function::User(UserFunction::new(args_len, code_start, upvalues))
+    pub fn new_user(proto: &FuncProto) -> Self {
+        Function::User(UserFunction::new(proto))
     }
 
     pub fn args_len(&self) -> ArgsLen {
@@ -64,12 +67,12 @@ impl Function {
 impl UserFunction {
     pub const MAX_UPVALUES: u8 = std::u8::MAX;
 
-    pub fn new(args_len: u8, code_start: usize, upvalues: &[UpValueDesc]) -> Self {
+    pub fn new(proto: &FuncProto) -> Self {
         UserFunction {
-            args_len,
-            code_start,
+            args_len: proto.args_len,
+            code_start: proto.code_start,
             // TODO: Impl Into<UpValue> for UpValueDesc
-            upvalues: upvalues.iter().map(|ud| if ud.is_this {
+            upvalues: proto.upvalues.iter().map(|ud| if ud.is_this {
                 UpValue::This {
                     index: ud.index,
                 }
@@ -78,11 +81,17 @@ impl UserFunction {
                     index: ud.index,
                 }
             }).collect(),
+            this: None,
         }
     }
 
+    pub fn with_this(mut self, table: Rc<RefCell<Table>>) -> Self {
+        self.this = Some(table);
+        self
+    }
+
     pub fn args_len(&self) -> u8 {
-        self.args_len
+        if self.is_method() { self.args_len - 1 } else { self.args_len }
     }
 
     pub fn code_start(&self) -> usize {
@@ -97,8 +106,12 @@ impl UserFunction {
         self.upvalues.as_mut_slice()
     }
 
-    pub fn extract_upvalues(self) -> Vec<UpValue> {
+    pub fn extract_upvalues(self) -> Vec<UpValue> {    
         self.upvalues
+    }
+
+    pub fn is_method(&self) -> bool {
+        self.this.is_some()
     }
 
     pub fn push_upvalue(&mut self, index: u16) -> Option<u8> {
@@ -112,6 +125,10 @@ impl UserFunction {
 
     pub fn close_upvalue(&mut self, index: usize, value: Value) {
         self.upvalues[index] = UpValue::Closed(value);
+    }
+
+    pub fn take_this(&mut self) -> Option<Rc<RefCell<Table>>> {
+        self.this.take()
     }
 }
 
@@ -141,6 +158,12 @@ impl Hash for UserFunction {
     // Code start should be unique
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.code_start.hash(state)
+    }
+}
+
+impl Into<Value> for UserFunction {
+    fn into(self) -> Value {
+        Value::Function(Function::User(self))
     }
 }
 
