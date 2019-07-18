@@ -1,1 +1,1 @@
-assert(true)
+println("hello world")

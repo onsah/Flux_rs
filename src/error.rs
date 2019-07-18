@@ -1,6 +1,6 @@
-use super::scanner::LexError;
-use super::parser::ParserError;
 use super::compiler::CompileError;
+use super::parser::ParserError;
+use super::scanner::LexError;
 use super::vm::RuntimeError;
 
 pub type FluxResult<T> = std::result::Result<T, FluxError>;

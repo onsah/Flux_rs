@@ -55,6 +55,8 @@ where
             self.while_stmt()
         } else if self.match_token(TokenType::Return).is_ok() {
             self.return_stmt()
+        } else if self.match_token(TokenType::Fn).is_ok() {
+            self.fn_stmt()
         } else {
             let expr = self.expr_stmt()?;
             let _ = self.match_token(TokenType::Semicolon);
@@ -136,6 +138,13 @@ where
             self.expression()?
         };
         Ok(Statement::Return(expr))
+    }
+
+    fn fn_stmt(&mut self) -> Result<Statement> {
+        let token = self.match_token(TokenType::Identifier)?;
+        let name = token.extract_text();
+        let value = self.function()?;
+        Ok(Statement::Let { name, value })
     }
 
     fn expr_stmt(&mut self) -> Result<Statement> {
@@ -343,40 +352,47 @@ where
     }
 
     fn table_init(&mut self) -> Result<Expr> {
-        let mut values = Vec::new();
-        let mut keys: Option<Vec<Expr>> = {
-            let expr = self.expression()?;
-            match expr {
-                Expr::Set { variable, value } => {
-                    values.push(*value);
-                    Some(vec![*variable])
-                }
-                other => {
-                    values.push(other);
-                    None
-                }
-            }
-        };
-        while self.match_token(TokenType::Comma).is_ok() {
-            if let Some(keys) = keys.as_mut() {
+        if self.match_token(TokenType::RightCurly).is_ok() {
+            Ok(Expr::TableInit {
+                values: Vec::new(),
+                keys: None,
+            })
+        } else {
+            let mut values = Vec::new();
+            let mut keys: Option<Vec<Expr>> = {
                 let expr = self.expression()?;
                 match expr {
                     Expr::Set { variable, value } => {
-                        keys.push(*variable);
                         values.push(*value);
+                        Some(vec![*variable])
                     }
-                    _ => return Err(ParserError::InitError),
+                    other => {
+                        values.push(other);
+                        None
+                    }
                 }
-            } else {
-                let expr = self.expression()?;
-                match expr {
-                    Expr::Set { .. } => return Err(ParserError::InitError),
-                    _ => values.push(expr),
+            };
+            while self.match_token(TokenType::Comma).is_ok() {
+                if let Some(keys) = keys.as_mut() {
+                    let expr = self.expression()?;
+                    match expr {
+                        Expr::Set { variable, value } => {
+                            keys.push(*variable);
+                            values.push(*value);
+                        }
+                        _ => return Err(ParserError::InitError),
+                    }
+                } else {
+                    let expr = self.expression()?;
+                    match expr {
+                        Expr::Set { .. } => return Err(ParserError::InitError),
+                        _ => values.push(expr),
+                    }
                 }
             }
+            self.match_token(TokenType::RightCurly)?;
+            Ok(Expr::TableInit { keys, values })
         }
-        self.match_token(TokenType::RightCurly)?;
-        Ok(Expr::TableInit { keys, values })
     }
 
     fn function(&mut self) -> Result<Expr> {
@@ -420,7 +436,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{BinaryOp, Expr, Literal, Parser, ParserError, UnaryOp};
+    use super::*;
 
     #[test]
     fn binary_works() {
@@ -531,6 +547,17 @@ mod tests {
         let mut parser = Parser::new(source).unwrap();
         let parsed = parser.expression();
         assert_eq!(parsed, Err(ParserError::InitError));
+
+        let source = "{}";
+        let mut parser = Parser::new(source).unwrap();
+        let parsed = parser.expression();
+        assert_eq!(
+            parsed,
+            Ok(Expr::TableInit {
+                values: Vec::new(),
+                keys: None
+            })
+        );
     }
 
     #[test]
@@ -569,6 +596,23 @@ mod tests {
                     field: Box::new(Expr::Literal(Literal::Str("hello".to_string())))
                 }),
                 args: vec![]
+            }
+        )
+    }
+
+    #[test]
+    fn fn_stmt_works() {
+        let source = "fn foo() end";
+        let mut parser = Parser::new(source).unwrap();
+        let parsed = parser.statement().unwrap();
+        assert_eq!(
+            parsed,
+            Statement::Let {
+                name: "foo".to_string(),
+                value: Expr::Function {
+                    args: vec![],
+                    body: vec![]
+                }
             }
         )
     }

@@ -1,7 +1,7 @@
 use super::Value;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::cell::RefCell;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Table {
@@ -14,6 +14,10 @@ impl Table {
 
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn shared(self) -> Rc<RefCell<Self>> {
+        Rc::new(RefCell::new(self))
     }
 
     pub fn from_array(array: Vec<(Value, Value)>) -> Self {
@@ -37,6 +41,10 @@ impl Table {
             }
         }
         self.table.get(key).unwrap_or(&Self::NIL)
+    }
+
+    pub fn klass(&self) -> &Value {
+        self.get(&Value::Embedded("__class__"))
     }
 
     pub fn pairs(&self) -> impl Iterator<Item = (&Value, &Value)> {

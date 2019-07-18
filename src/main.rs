@@ -5,6 +5,8 @@ extern crate maplit;
 
 mod compiler;
 pub mod error;
+#[macro_use]
+mod macros;
 mod parser;
 mod scanner;
 mod vm;
@@ -26,9 +28,8 @@ fn main() -> Result<(), error::FluxError> {
         file.read_to_string(&mut buffer).unwrap();
         let mut parser = Parser::new(&buffer)?;
         let ast = parser.parse().unwrap();
-        //println!("AST:\n {:#?}", ast);
         let chunk = Compiler::compile(ast)?;
-        println!("Chunk: {:#?}\n", chunk);
+        debug!("{:?}", &chunk);
         print_instructions(&chunk);
         let mut vm = Vm::new();
         vm.run(chunk)?;
@@ -46,10 +47,9 @@ fn repl() -> Result<(), error::FluxError> {
         stdin.read_line(&mut line).unwrap();
         let mut parser = Parser::new(&line)?;
         let ast = parser.parse().unwrap();
-        // println!("AST:\n {:#?}", ast);
+        debug!("{:?}", &ast);
         let chunk = Compiler::compile(ast)?;
-        // println!("Chunk: {:?}\n", chunk);
-        // println!("{}", vm.run(chunk).unwrap());
+        debug!("{:?}", &chunk);
         match vm.run(chunk) {
             Ok(_) => (),
             Err(error) => println!("Error: {:?}", error),
@@ -60,6 +60,6 @@ fn repl() -> Result<(), error::FluxError> {
 
 fn print_instructions(chunk: &Chunk) {
     for (i, instr) in chunk.instructions().iter().enumerate() {
-        println!("{}: {:?}", i, instr)
+        debug!("{}: {:?}", i, instr);
     }
 }

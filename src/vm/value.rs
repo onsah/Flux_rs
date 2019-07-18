@@ -5,18 +5,21 @@ use std::fmt::{self, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
-pub use function::{Function, UserFunction, NativeFunction, ArgsLen, UpValue};
+pub use function::{ArgsLen, Function, NativeFunction, UpValue, UserFunction};
 pub use table::Table;
 
 mod function;
 mod table;
 
+pub type Integer = i64;
+pub type Float = f64;
+
 #[derive(Debug, Clone)]
 pub enum Value {
     Nil,
     Bool(bool),
-    Int(i32),
-    Number(f64),
+    Int(Integer),
+    Number(Float),
     Str(Rc<String>),
     Embedded(&'static str),
     Table(Rc<RefCell<Table>>),
@@ -37,16 +40,16 @@ impl Value {
         }
     }
 
-    pub fn convert_int(&self) -> Option<i32> {
+    pub fn convert_int(&self) -> Option<Integer> {
         match self {
             Value::Int(i) => Some(*i),
             Value::Number(n) => {
                 if n.fract() == 0.0 {
-                    Some(n.round() as i32)
+                    Some(n.round() as Integer)
                 } else {
                     None
                 }
-            } 
+            }
             _ => None,
         }
     }
@@ -61,32 +64,22 @@ impl Value {
 
     pub fn is_user_fn(&self) -> bool {
         match self {
-            Value::Function(function) => {
-                match function {
-                    Function::User(_) => true,
-                    _ => false,
-                }
-            }
+            Value::Function(function) => match function {
+                Function::User(_) => true,
+                _ => false,
+            },
             _ => false,
         }
     }
 
     pub fn to_user_fn(self) -> RuntimeResult<UserFunction> {
         match self {
-            Value::Function(function) => {
-                match function {
-                    Function::User(f) => Ok(f),
-                    _ => Err(RuntimeError::TypeError),
-                }
-            }
+            Value::Function(function) => match function {
+                Function::User(f) => Ok(f),
+                _ => Err(RuntimeError::TypeError),
+            },
             _ => Err(RuntimeError::TypeError),
         }
-    }
-}
-
-impl From<String> for Value {
-    fn from(string: String) -> Self {
-        Value::Str(Rc::new(string))
     }
 }
 
@@ -191,19 +184,20 @@ impl Display for Value {
                 Ok(())
             }
             Value::Function(function) => {
-                let is_native = if function.is_native() {
-                    "native "
-                } else {
-                    ""
-                };
+                let is_native = if function.is_native() { "native " } else { "" };
                 write!(f, "{}fn({} args)", is_native, function.args_len())
-            },
+            }
             Value::Unit => write!(f, "()"),
             Value::Embedded(string) => write!(f, "{}", string),
         }
     }
 }
 
+impl From<Table> for Value {
+    fn from(table: Table) -> Self {
+        Value::Table(Rc::new(RefCell::new(table)))
+    }
+}
 
 impl From<Rc<RefCell<Table>>> for Value {
     fn from(table: Rc<RefCell<Table>>) -> Self {
@@ -211,10 +205,52 @@ impl From<Rc<RefCell<Table>>> for Value {
     }
 }
 
+impl From<String> for Value {
+    fn from(string: String) -> Self {
+        Value::Str(Rc::new(string))
+    }
+}
+
+impl From<&'static str> for Value {
+    fn from(lit: &'static str) -> Self {
+        Value::Embedded(lit)
+    }
+}
+
+impl From<Integer> for Value {
+    fn from(int: Integer) -> Self {
+        Value::Int(int)
+    }
+}
+
+impl From<Float> for Value {
+    fn from(float: Float) -> Self {
+        Value::Number(float)
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    // TODO
-    fn hash_works() {
+    use super::*;
+    use std::collections::HashMap;
 
+    // TODO
+    #[test]
+    fn hash_works() {
+        let mut map: HashMap<Value, ()> = HashMap::new();
+        // Value::Embedded == Value::Str
+        let a: Value = "some literal".into();
+        let b: Value = "some literal".to_string().into();
+        map.insert(a, ());
+        assert!(map.contains_key(&b));
+        // Tables are hashed by adress
+        let a: Value = Table::new().into();
+        let b: Value = Table::new().into();
+        let c = a.clone();
+        map.insert(a, ());
+        assert!(!map.contains_key(&b));
+        assert!(map.contains_key(&c));
+        // Value::Int == Value::Number
+        //...
     }
 }

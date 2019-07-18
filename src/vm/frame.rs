@@ -1,6 +1,6 @@
 use super::value::UpValue;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Frame {
     pub(super) pc: usize,
     pub(super) stack_top: usize,
@@ -9,7 +9,11 @@ pub struct Frame {
 
 impl Frame {
     pub fn new(pc: usize, stack_top: usize, upvalues: Vec<UpValue>) -> Self {
-        Frame { pc, stack_top, upvalues }
+        Frame {
+            pc,
+            stack_top,
+            upvalues,
+        }
     }
 
     pub fn stack_top(&self) -> usize {

@@ -1,15 +1,15 @@
-use std::fmt::{Display, Formatter};
+use super::{Table, Value};
+use crate::compiler::FuncProto;
+use crate::vm::{RuntimeResult, Vm};
+use std::cell::RefCell;
+use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
-use std::cell::RefCell;
-use super::{Value, Table};
-use crate::compiler::{UpValueDesc, FuncProto};
-use crate::vm::RuntimeResult;
 
 #[derive(Clone, Debug, Hash, PartialEq)]
 pub enum Function {
     User(UserFunction),
-    Native(NativeFunction)
+    Native(NativeFunction),
 }
 
 #[derive(Clone, Debug)]
@@ -20,21 +20,19 @@ pub struct UserFunction {
     this: Option<Rc<RefCell<Table>>>,
 }
 
-#[derive(Clone, Debug, Hash)]
+#[derive(Clone, Debug, Hash, PartialEq)]
 pub enum UpValue {
-    Open {
-        index: u16,
-    },
+    Open { index: u16 },
     Closed(Value),
     // Upvalue in the stack of itself
-    This {
-        index: u16
-    },
+    This { index: u16 },
 }
 
-#[derive(Clone, Debug, Hash, PartialEq)]
+type NativeFn = fn(&mut Vm, Vec<Value>) -> RuntimeResult<Value>;
+
+#[derive(Clone)]
 pub struct NativeFunction {
-    pub function: fn(Vec<Value>) -> RuntimeResult<Value>,
+    pub function: NativeFn,
     pub args_len: ArgsLen,
 }
 
@@ -72,15 +70,17 @@ impl UserFunction {
             args_len: proto.args_len,
             code_start: proto.code_start,
             // TODO: Impl Into<UpValue> for UpValueDesc
-            upvalues: proto.upvalues.iter().map(|ud| if ud.is_this {
-                UpValue::This {
-                    index: ud.index,
-                }
-            } else {
-                UpValue::Open {
-                    index: ud.index,
-                }
-            }).collect(),
+            upvalues: proto
+                .upvalues
+                .iter()
+                .map(|ud| {
+                    if ud.is_this {
+                        UpValue::This { index: ud.index }
+                    } else {
+                        UpValue::Open { index: ud.index }
+                    }
+                })
+                .collect(),
             this: None,
         }
     }
@@ -91,7 +91,11 @@ impl UserFunction {
     }
 
     pub fn args_len(&self) -> u8 {
-        if self.is_method() { self.args_len - 1 } else { self.args_len }
+        if self.is_method() {
+            self.args_len - 1
+        } else {
+            self.args_len
+        }
     }
 
     pub fn code_start(&self) -> usize {
@@ -106,7 +110,7 @@ impl UserFunction {
         self.upvalues.as_mut_slice()
     }
 
-    pub fn extract_upvalues(self) -> Vec<UpValue> {    
+    pub fn extract_upvalues(self) -> Vec<UpValue> {
         self.upvalues
     }
 
@@ -164,6 +168,24 @@ impl Hash for UserFunction {
 impl Into<Value> for UserFunction {
     fn into(self) -> Value {
         Value::Function(Function::User(self))
+    }
+}
+
+impl Debug for NativeFunction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "native fn({})", self.args_len())
+    }
+}
+
+impl PartialEq for NativeFunction {
+    fn eq(&self, other: &NativeFunction) -> bool {
+        (self.function as *const NativeFn) == (other.function as *const NativeFn)
+    }
+}
+
+impl Hash for NativeFunction {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        (self.function as *const NativeFn).hash(state);
     }
 }
 

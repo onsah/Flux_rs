@@ -81,10 +81,18 @@ pub enum Instruction {
     /* Placeholder for patching jumps */
     Placeholder,
     Print,
-    FuncDef { proto_index: usize},
-    Call { args_len: u8 },
-    GetUpval { index: u16 },
-    CloseUpval { index: u8 },
+    FuncDef {
+        proto_index: usize,
+    },
+    Call {
+        args_len: u8,
+    },
+    GetUpval {
+        index: u16,
+    },
+    CloseUpval {
+        index: u8,
+    },
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]

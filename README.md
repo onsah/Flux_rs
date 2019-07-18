@@ -15,8 +15,8 @@ Design goals are:
 * Implement statements (done)
 * Implement functions (as first class citizen) (done)
 * Implement closures (done!)
-* Implement simple OOP (like lua metatables)
-* Simple patterns matching for tuple expressions
+* Implement simple OOP (like lua metatables) (done)
+* Simple pattern matching for tuple expressions
 * Nullable variables and static checking for nullable types
 * Optimization for tables used as arrays (Like lua)
 

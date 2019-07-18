@@ -1,21 +1,22 @@
 mod error;
 mod frame;
-mod natives;
+mod lib;
 #[cfg(test)]
 mod tests;
 mod value;
 
-use crate::compiler::{BinaryInstr, Chunk, Instruction, UnaryInstr, FuncProto};
+use crate::compiler::{BinaryInstr, Chunk, Instruction, UnaryInstr};
 pub use error::RuntimeError;
 use frame::Frame;
+pub use lib::PREDEFINED_CONSTANTS;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
-pub use value::{Function, ArgsLen, Table, Value, UpValue};
-pub use natives::PREDEFINED_CONSTANTS;
+pub use value::{ArgsLen, Function, NativeFunction, Table, UpValue, UserFunction, Value, Integer, Float};
 
 pub type RuntimeResult<T> = Result<T, RuntimeError>;
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct Vm {
     frames: Vec<Frame>,
     stack: Vec<Value>,
@@ -25,20 +26,20 @@ pub struct Vm {
 
 impl Vm {
     pub fn new() -> Self {
-        Vm {
-            frames: Vec::new(),
-            stack: Vec::new(),
-            current_chunk: None,
-            globals: PREDEFINED_CONSTANTS.iter()
-                .map(|(s, f)| (Value::Embedded(s), f.clone()))
-                .collect(),
-        }
+        Self::default()
     }
 
     pub fn run(&mut self, chunk: Chunk) -> RuntimeResult<Value> {
         self.current_chunk = Some(chunk);
         self.init_call();
-        self.execute()
+        loop {
+            self.execute()?;
+            if self.frames.is_empty() {
+                return Ok(self.pop_stack()?);
+            }
+            let f = self.current_frame_mut()?;
+            f.pc += 1;
+        }
     }
 
     #[inline]
@@ -47,7 +48,7 @@ impl Vm {
         self.frames.push(frame)
     }
 
-    fn execute(&mut self) -> RuntimeResult<Value> {
+    fn execute(&mut self) -> RuntimeResult<()> {
         loop {
             let instr = self.next_instr()?;
             match instr {
@@ -63,7 +64,7 @@ impl Vm {
                     self.pop_stack()?;
                 }
                 Instruction::Return { return_value } => {
-                    // println!("Call Stack:\n{:?}", self.frames);
+                    // TODO: fn return
                     let mut value = if return_value {
                         self.pop_stack()?
                     } else {
@@ -80,7 +81,7 @@ impl Vm {
                                             let index = frame.stack_top + *index as usize;
                                             let value = self.stack[index].clone();
                                             *upval = UpValue::Closed(value);
-                                        },
+                                        }
                                         // Note: can be moved somehow since it will be dropped immediately
                                         UpValue::Closed(value) => {
                                             *upval = UpValue::Closed(value.clone());
@@ -96,9 +97,8 @@ impl Vm {
                     }
                     self.stack.push(value);
                     self.frames.pop().unwrap();
-                    if self.frames.is_empty() {
-                        return self.pop_stack();
-                    }
+                    // self.print_stack();
+                    return Ok(());
                 }
                 Instruction::Bin(bin) => self.binary(bin)?,
                 Instruction::Unary(unary) => self.unary(unary)?,
@@ -119,12 +119,20 @@ impl Vm {
                     self.globals.insert(name, value);
                 }
                 Instruction::GetLocal { index, frame } => {
-                    let frame_index = if frame != 0 { self.frames.len() - frame as usize } else { 0 };
+                    let frame_index = if frame != 0 {
+                        self.frames.len() - frame as usize
+                    } else {
+                        0
+                    };
                     let index = self.frames[frame_index].stack_top() + index as usize;
                     self.stack.push(self.stack[index as usize].clone());
                 }
                 Instruction::SetLocal { index, frame } => {
-                    let frame_index = if frame != 0 { self.frames.len() - frame as usize } else { 0 };
+                    let frame_index = if frame != 0 {
+                        self.frames.len() - frame as usize
+                    } else {
+                        0
+                    };
                     let index = self.frames[frame_index].stack_top() + index as usize;
                     if self.stack.len() != index as usize {
                         self.stack[index as usize] = self.pop_stack()?;
@@ -156,11 +164,9 @@ impl Vm {
                     self.stack.push(tuple)
                 }
                 Instruction::FuncDef { proto_index } => {
-                    let proto = &self.current_chunk().prototypes()[proto_index];
-                    self
-                    .stack
-                    .push(Value::Function(Function::new_user(proto)))
-                },
+                    let proto = self.current_chunk().prototypes()[proto_index].clone();
+                    self.stack.push(Value::Function(Function::new_user(&proto)))
+                }
                 Instruction::Call { args_len } => {
                     let function = self.pop_stack()?;
                     match function {
@@ -192,54 +198,57 @@ impl Vm {
             }
             let f = self.current_frame_mut()?;
             f.pc += 1;
-            // self.print_call_stack();
-            // self.print_stack()
+            self.print_call_stack();
+            self.print_stack()
+        }
+    }
+
+    // TODO: look recursively for '__class__' attribute when something is returns nil
+    fn get_table(key: &Value, table: &Value) -> RuntimeResult<Value> {
+        match table {
+            Value::Table(rc) => {
+                let table = rc.borrow_mut();
+                let value = match table.get(&key) {
+                    Value::Nil => match table.klass() {
+                        Value::Nil => Value::Nil,
+                        value => Self::get_table(key, value)?,
+                    },
+                    value => value.clone(),
+                };
+                Ok(value)
+            }
+            _ => Err(RuntimeError::TypeError),
         }
     }
 
     fn get_field(&mut self) -> RuntimeResult<()> {
         let key = self.pop_stack()?;
         let table = self.pop_stack()?;
-        match table {
-            Value::Table(rc) => {
-                let table = rc.borrow_mut();
-                let value = table.get(&key).clone();
-                self.stack.push(value);
-                Ok(())
-            }
-            _ => Err(RuntimeError::TypeError),
-        }
+        let value = Self::get_table(&key, &table)?;
+        self.stack.push(value);
+        Ok(())
     }
 
     fn get_field_imm(&mut self, index: u8) -> RuntimeResult<()> {
         let table = self.pop_stack()?;
         let key = &self.current_chunk().constants()[index as usize];
+        let value = Self::get_table(key, &table)?;
+        self.stack.push(value);
+        Ok(())
+    }
+
+    fn get_method_imm(&mut self, index: u8) -> RuntimeResult<()> {
+        // let field = self.get_field_imm(index)?;
+        let table = self.pop_stack()?;
+        let key = &self.current_chunk().constants()[index as usize];
+        let value = Self::get_table(&key, &table)?;
         match table {
             Value::Table(rc) => {
-                let table = rc.borrow_mut();
-                let value = table.get(&key).clone();
-                self.stack.push(value);
+                self.stack.push(value.to_user_fn()?.with_this(rc).into());
                 Ok(())
             }
             _ => Err(RuntimeError::TypeError),
         }
-    }
-
-    fn get_method_imm(&mut self, index: u8) -> RuntimeResult<()> {
-        let table = self.pop_stack()?;
-        let key = &self.current_chunk().constants()[index as usize];
-        let value = match table {
-            Value::Table(rc) => {
-                let value = {
-                    let table = rc.borrow_mut();
-                    table.get(&key).clone()
-                };
-                Ok(value.to_user_fn()?.with_this(rc).into())
-            }
-            _ => Err(RuntimeError::TypeError),
-        }?;
-        self.stack.push(value);
-        Ok(())
     }
 
     fn set_field(&mut self) -> RuntimeResult<()> {
@@ -282,7 +291,7 @@ impl Vm {
         } else {
             let mut values = Vec::new();
             for i in 0..len {
-                values.push((Value::Int(i as i32), self.pop_stack()?))
+                values.push((Value::Int(i as Integer), self.pop_stack()?))
             }
             Table::from_array(values)
         };
@@ -302,46 +311,60 @@ impl Vm {
 
     fn call(&mut self, function: Function, pushed_args: u8) -> RuntimeResult<()> {
         match function {
-            Function::User(mut function) => {
-                if pushed_args == function.args_len() {
-                    let pc = function.code_start();
-                    let stack_top = self.stack.len() - function.args_len() as usize;
-                    if let Some(this) = function.take_this() {
-                        self.stack.push(this.into())
+            Function::User(function) => self.call_user(function, pushed_args),
+            Function::Native(native_fn) => self.call_native(native_fn, pushed_args),
+        }
+    }
+
+    fn call_user(&mut self, mut function: UserFunction, pushed_args: u8) -> RuntimeResult<()> {
+        if pushed_args == function.args_len() {
+            let pc = function.code_start();
+            let stack_top = self.stack.len() - function.args_len() as usize;
+            if let Some(this) = function.take_this() {
+                self.stack.push(this.into())
+            }
+            let upvalues = function.extract_upvalues();
+            self.frames.push(Frame::new(pc, stack_top, upvalues));
+            Ok(())
+        } else {
+            Err(RuntimeError::WrongNumberOfArgs {
+                expected: function.args_len(),
+                found: pushed_args,
+            })
+        }
+    }
+
+    fn call_user_blocking(&mut self, function: UserFunction, pushed_args: u8) -> RuntimeResult<()> {
+        self.call_user(function, pushed_args)?;
+        // If we don't have these lines we stuck in loop because jump instructions consider incrementing
+        let f = self.current_frame_mut()?;
+        f.pc += 1;
+        self.execute()
+    }
+
+    fn call_native(&mut self, native_fn: NativeFunction, pushed_args: u8) -> RuntimeResult<()> {
+        let mut args = Vec::new();
+        match native_fn.args_len() {
+            ArgsLen::Variadic => {
+                for _ in 0..pushed_args {
+                    args.push(self.pop_stack()?);
+                }
+            }
+            ArgsLen::Exact(n) => {
+                if n == pushed_args {
+                    for _ in 0..pushed_args {
+                        args.push(self.pop_stack()?);
                     }
-                    let upvalues = function.extract_upvalues();
-                    self.frames.push(Frame::new(pc, stack_top, upvalues));
                 } else {
                     return Err(RuntimeError::WrongNumberOfArgs {
-                        expected: function.args_len(),
+                        expected: n,
                         found: pushed_args,
                     });
                 }
-            },
-            Function::Native(native_fn) => {
-                let mut args = Vec::new();
-                match native_fn.args_len() {
-                    ArgsLen::Variadic => {
-                        for _ in 0..pushed_args {
-                            args.push(self.pop_stack()?);
-                        }
-                    }
-                    ArgsLen::Exact(n) => {
-                        if n == pushed_args {
-                            for _ in 0..pushed_args {
-                                args.push(self.pop_stack()?);
-                            }
-                        } else {
-                            return Err(RuntimeError::WrongNumberOfArgs {
-                                expected: n,
-                                found: pushed_args,
-                            });
-                        }
-                    }
-                }
-                self.stack.push((native_fn.function)(args)?)
             }
         }
+        let value = (native_fn.function)(self, args)?;
+        self.stack.push(value);
         Ok(())
     }
 
@@ -436,7 +459,7 @@ impl Vm {
     fn next_instr(&mut self) -> RuntimeResult<Instruction> {
         let f = self.current_frame()?;
         let instr = self.current_chunk().instructions()[f.pc];
-        // println!("pc: {}, instr: {:?}", f.pc, instr);
+        debug!("pc: {}, instr: {:?}", f.pc, instr);
         Ok(instr)
     }
 
@@ -476,18 +499,32 @@ impl Vm {
 
     #[allow(dead_code)]
     fn print_call_stack(&self) {
-        println!("**********Call stack**********");
+        debug!("**********Call stack**********");
         for frame in &self.frames {
-            println!("{:?}", frame);
+            debug!("{:?}", frame);
         }
     }
 
     #[allow(dead_code)]
     fn print_stack(&self) {
-        println!("**********STACK LEN: {}**********", self.stack.len());
+        debug!("**********STACK LEN: {}**********", self.stack.len());
         for value in self.stack.iter() {
-            println!("{}", value)
+            debug!("{}", value)
         }
-        println!("**********STACK END**********");
+        debug!("**********STACK END**********");
+    }
+}
+
+impl Default for Vm {
+    fn default() -> Self {
+        Vm {
+            frames: Vec::new(),
+            stack: Vec::new(),
+            current_chunk: None,
+            globals: PREDEFINED_CONSTANTS
+                .iter()
+                .map(|(s, f)| (Value::Embedded(s), f.clone()))
+                .collect(),
+        }
     }
 }

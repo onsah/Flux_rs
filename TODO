@@ -1,2 +1,6 @@
-* Functions either method or not
-* If a function is method stack pointer of frame starts one higher because 'self' is already pushed to the stack
+* move function instructions to prototypes
+* use type alias for Int and float
+* create std lib
+* sugar for 'fn foo()...' to 'let foo = fn()...' 
+* block and let statements are also expr
+* modules (first functions should be compiled to prototypes instead of directly to chunk)

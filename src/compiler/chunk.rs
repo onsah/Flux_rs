@@ -1,16 +1,16 @@
 use super::Instruction;
-use super::{CompileError, CompileResult};
 use super::UpValueDesc;
+use super::{CompileError, CompileResult};
 use crate::vm::{Value, PREDEFINED_CONSTANTS};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Chunk {
     instructions: Vec<Instruction>,
     constants: Vec<Value>,
     prototypes: Vec<FuncProto>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct FuncProto {
     pub code_start: usize,
     pub args_len: u8,
@@ -30,7 +30,8 @@ impl Chunk {
     pub fn new() -> Self {
         Chunk {
             instructions: Vec::new(),
-            constants: PREDEFINED_CONSTANTS.iter()
+            constants: PREDEFINED_CONSTANTS
+                .iter()
                 .map(|(s, _)| Value::Embedded(s))
                 .collect(),
             prototypes: Vec::new(),
@@ -77,15 +78,19 @@ impl Chunk {
             .iter()
             .enumerate()
             .find_map(|(i, s)| match s {
-                Value::Str(s) => if **s == string {
-                    Some(i as u8)
-                } else {
-                    None
-                },
-                Value::Embedded(s) => if *s == string {
-                    Some(i as u8)
-                } else {
-                    None
+                Value::Str(s) => {
+                    if **s == string {
+                        Some(i as u8)
+                    } else {
+                        None
+                    }
+                }
+                Value::Embedded(s) => {
+                    if *s == string {
+                        Some(i as u8)
+                    } else {
+                        None
+                    }
                 }
                 _ => None,
             })
@@ -124,11 +129,16 @@ impl Chunk {
         }
     }
 
-    pub fn push_proto(&mut self, code_start: usize, args_len: u8, upvalues: Vec<UpValueDesc>) -> usize {
+    pub fn push_proto(
+        &mut self,
+        code_start: usize,
+        args_len: u8,
+        upvalues: Vec<UpValueDesc>,
+    ) -> usize {
         self.prototypes.push(FuncProto {
             code_start,
             args_len,
-            upvalues
+            upvalues,
         });
         self.prototypes.len() - 1
     }

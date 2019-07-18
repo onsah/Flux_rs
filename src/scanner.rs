@@ -69,7 +69,7 @@ impl<'a> Scanner<'a> {
                 '/' => match self.peek() {
                     '/' => self.single_line_comment()?,
                     _ => return Ok(self.new_token(TokenType::Slash, start, start + 1)),
-                } 
+                },
 
                 '=' => match self.peek() {
                     '=' => {
@@ -139,7 +139,7 @@ impl<'a> Scanner<'a> {
 
     fn single_line_comment(&mut self) -> Result<()> {
         self.match_char('/')?;
-        while self.match_pred(|c| c != '\n').is_ok() { }
+        while self.match_pred(|c| c != '\n').is_ok() {}
         Ok(())
     }
 

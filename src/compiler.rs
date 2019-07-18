@@ -3,8 +3,8 @@ mod error;
 mod instruction;
 
 use crate::parser::{BinaryOp, Expr, Literal, Statement, UnaryOp};
-use crate::vm::Value;
-pub use chunk::{Chunk, JumpCondition, FuncProto};
+use crate::vm::{Value, Integer};
+pub use chunk::{Chunk, FuncProto, JumpCondition};
 pub use error::CompileError;
 pub use instruction::{BinaryInstr, Instruction, UnaryInstr};
 
@@ -17,7 +17,7 @@ pub struct Compiler {
     closure_scopes: Vec<ClosureScope>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Local {
     name: String,
     depth: u8,
@@ -25,14 +25,14 @@ pub struct Local {
     closure: Option<u8>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 struct ClosureScope {
     depth: u8,
     local_start: usize,
     upvalues: Vec<UpValueDesc>,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct UpValueDesc {
     pub index: u16,
     pub is_this: bool,
@@ -197,7 +197,7 @@ impl Compiler {
                 false => Instruction::False,
             }),
             Literal::Number(n) => match n.fract() == 0.0 {
-                true => self.chunk.push_constant(Value::Int(n.trunc() as i32)),
+                true => self.chunk.push_constant(Value::Int(n.trunc() as Integer)),
                 false => self.chunk.push_constant(Value::Number(n)),
             }
             .map(|_| ()),
@@ -229,17 +229,18 @@ impl Compiler {
                 }
                 for closure in closure_iter {
                     closure.upvalues.push(UpValueDesc {
-                        index, 
+                        index,
                         is_this: false,
                     });
                     index = closure.upvalues.len() as u16 - 1;
                 }
                 let closure = self.closure_scopes.last_mut().unwrap();
-                self.chunk.push_instr(Instruction::GetUpval { 
-                    index: closure.upvalues.len() as u16 - 1
+                self.chunk.push_instr(Instruction::GetUpval {
+                    index: closure.upvalues.len() as u16 - 1,
                 })
             } else {
-                self.chunk.push_instr(Instruction::GetLocal { index, frame })
+                self.chunk
+                    .push_instr(Instruction::GetLocal { index, frame })
             }
         } else {
             let index = self.chunk.add_constant(Value::new_str(name))?;
@@ -322,7 +323,8 @@ impl Compiler {
                 self.compile_expr(value)?;
                 if let Some((index, frame)) = self.resolve_local(name.as_str()) {
                     let index = index as u16;
-                    self.chunk.push_instr(Instruction::SetLocal { index, frame })
+                    self.chunk
+                        .push_instr(Instruction::SetLocal { index, frame })
                 } else {
                     self.chunk.push_instr(Instruction::SetGlobal { index })
                 }
@@ -334,7 +336,8 @@ impl Compiler {
                 self.chunk.push_instr(Instruction::SetField)
             }
             _ => Err(CompileError::InvalidAssignmentTarget(variable)),
-        }
+        }?;
+        self.chunk.push_instr(Instruction::Unit)
     }
 
     fn table_init(&mut self, keys: Option<Vec<Expr>>, values: Vec<Expr>) -> CompileResult<()> {
@@ -411,7 +414,10 @@ impl Compiler {
                 true => {
                     // TODO make this readable
                     let (offset, closure_depth) = match l.closure {
-                        Some(i) => (self.closure_scopes[i as usize].local_start, self.closure_scopes.len() as u8 - i),
+                        Some(i) => (
+                            self.closure_scopes[i as usize].local_start,
+                            self.closure_scopes.len() as u8 - i,
+                        ),
                         None => (0, 0),
                     };
                     Some((i - offset, closure_depth))
