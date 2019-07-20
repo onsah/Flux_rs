@@ -14,6 +14,11 @@ pub const PREDEFINED_CONSTANTS: [(&str, Value); 7] = [
     ("new", NEW),
 ];
 
+#[inline]
+pub fn constant_names() -> impl Iterator<Item=Value> {
+    PREDEFINED_CONSTANTS.iter().map(|&(n, _)| n.into())
+}
+
 macro_rules! define_native {
     ($name:ident, $function:expr, $len:expr) => {
         pub const $name: Value = Value::Function(Function::Native(NativeFunction {

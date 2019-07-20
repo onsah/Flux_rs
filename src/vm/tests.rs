@@ -15,6 +15,15 @@ unit_test! {
 }
 
 unit_test! {
+    arithmetic,
+    "
+    let x = 5 * 2 + 5 - 5
+    return x
+    ",
+    Ok(Value::Int(10))
+}
+
+unit_test! {
     simple_fn_call,
     "
     let foo = fn(x) return x * x end 
@@ -139,4 +148,21 @@ unit_test! {
     assert(foo == 1)
     ",
     Ok(Value::Unit)
+}
+
+unit_test! {
+    deep_nested_upvalues,
+    "
+    let foo = fn(x)
+        return fn(y)
+            return fn(z)
+                return fn(t)
+                    return x + y + z + t
+                end
+            end
+        end
+    end
+    return foo(1)(2)(3)(4)
+    ",
+    Ok(Value::Int(10))
 }

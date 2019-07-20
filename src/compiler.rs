@@ -26,10 +26,11 @@ pub struct Local {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-struct ClosureScope {
+pub(self) struct ClosureScope {
     depth: u8,
     local_start: usize,
     upvalues: Vec<UpValueDesc>,
+    instructions: Vec<Instruction>,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -78,12 +79,11 @@ impl Compiler {
             } => self.while_stmt(condition, *then_block),
             Statement::Print(expr) => {
                 self.compile_expr(expr)?;
-                self.chunk.push_instr(Instruction::Print)
+                self.add_instr(Instruction::Print)
             }
             Statement::Return(expr) => {
                 self.compile_expr(expr)?;
-                self.chunk
-                    .push_instr(Instruction::Return { return_value: true })
+                self.add_instr(Instruction::Return { return_value: true })
             }
         }
     }
@@ -95,7 +95,7 @@ impl Compiler {
         };
         self.compile_expr(expr)?;
         if !is_assignment {
-            self.chunk.push_instr(Instruction::Pop)?;
+            self.add_instr(Instruction::Pop)?;
         }
         Ok(())
     }
@@ -112,7 +112,7 @@ impl Compiler {
             self.compile_stmt(stmt)?;
         }
         for _ in 0..self.scope_decr() {
-            self.chunk.push_instr(Instruction::Pop)?;
+            self.add_instr(Instruction::Pop)?;
         }
         Ok(())
     }
@@ -125,30 +125,28 @@ impl Compiler {
         else_block: Option<Statement>,
     ) -> CompileResult<()> {
         self.compile_expr(condition)?;
-        let patch_index = self.chunk.push_placeholder()?;
+        let patch_index = self.add_placeholder()?;
         self.compile_stmt(then_block)?;
-        let offset = self.chunk.instructions().len() - patch_index;
+        let offset = self.instructions().len() - patch_index;
         if offset > std::i8::MAX as usize {
             return Err(CompileError::TooLongToJump);
         }
-        self.chunk
-            .patch_placeholder(patch_index, offset as i8, JumpCondition::WhenFalse)?;
+        self.patch_placeholder(patch_index, offset as i8, JumpCondition::WhenFalse)?;
         let has_else = if let Some(else_block) = else_block {
-            let patch_index = self.chunk.push_placeholder()?;
+            let patch_index = self.add_placeholder()?;
             self.compile_stmt(else_block)?;
-            let offset = self.chunk.instructions().len() - patch_index;
+            let offset = self.instructions().len() - patch_index;
             if offset > std::i8::MAX as usize {
                 return Err(CompileError::TooLongToJump);
             }
-            self.chunk
-                .patch_placeholder(patch_index, offset as i8, JumpCondition::None)?;
+            self.patch_placeholder(patch_index, offset as i8, JumpCondition::None)?;
             true
         } else {
             false
         };
         // Jump one further
         if has_else {
-            self.chunk.patch_placeholder(
+            self.patch_placeholder(
                 patch_index,
                 (offset + 1) as i8,
                 JumpCondition::WhenFalse,
@@ -158,15 +156,14 @@ impl Compiler {
     }
 
     fn while_stmt(&mut self, condition: Expr, then_block: Statement) -> CompileResult<()> {
-        let start_index = self.chunk.instructions().len();
+        let start_index = self.instructions().len();
         self.compile_expr(condition)?;
-        let patch_index = self.chunk.push_placeholder()?;
+        let patch_index = self.add_placeholder()?;
         self.compile_stmt(then_block)?;
-        let offset = self.chunk.instructions().len() - patch_index + 1;
-        self.chunk
-            .patch_placeholder(patch_index, offset as i8, JumpCondition::WhenFalse)?;
-        self.chunk.push_instr(Instruction::Jump {
-            offset: -((self.chunk.instructions().len() - start_index) as i8),
+        let offset = self.instructions().len() - patch_index + 1;
+        self.patch_placeholder(patch_index, offset as i8, JumpCondition::WhenFalse)?;
+        self.add_instr(Instruction::Jump {
+            offset: -((self.instructions().len() - start_index) as i8),
         })
     }
 
@@ -191,22 +188,21 @@ impl Compiler {
 
     fn literal(&mut self, lit: Literal) -> CompileResult<()> {
         match lit {
-            Literal::Nil => self.chunk.push_instr(Instruction::Nil),
-            Literal::Bool(b) => self.chunk.push_instr(match b {
+            Literal::Nil => self.add_instr(Instruction::Nil),
+            Literal::Bool(b) => self.add_instr(match b {
                 true => Instruction::True,
                 false => Instruction::False,
             }),
             Literal::Number(n) => match n.fract() == 0.0 {
-                true => self.chunk.push_constant(Value::Int(n.trunc() as Integer)),
-                false => self.chunk.push_constant(Value::Number(n)),
+                true => self.add_constant(Value::Int(n.trunc() as Integer), true),
+                false => self.add_constant(Value::Number(n), true),
             }
             .map(|_| ()),
             Literal::Str(string) => {
-                let index = self.chunk.add_constant(string.into())?;
-                self.chunk.push_instr(Instruction::Constant { index })?;
+                self.add_constant(string.into(), true)?;
                 Ok(())
             }
-            Literal::Unit => self.chunk.push_instr(Instruction::Unit),
+            Literal::Unit => self.add_instr(Instruction::Unit),
         }
     }
 
@@ -234,17 +230,19 @@ impl Compiler {
                     });
                     index = closure.upvalues.len() as u16 - 1;
                 }
-                let closure = self.closure_scopes.last_mut().unwrap();
-                self.chunk.push_instr(Instruction::GetUpval {
-                    index: closure.upvalues.len() as u16 - 1,
+                let upval_index = {
+                    let closure = self.closure_scopes.last_mut().unwrap();
+                    closure.upvalues.len() as u16 - 1
+                };
+                self.add_instr(Instruction::GetUpval {
+                    index: upval_index,
                 })
             } else {
-                self.chunk
-                    .push_instr(Instruction::GetLocal { index, frame })
+                self.add_instr(Instruction::GetLocal { index, frame })
             }
         } else {
-            let index = self.chunk.add_constant(Value::new_str(name))?;
-            self.chunk.push_instr(Instruction::GetGlobal { index })
+            let index = self.add_constant(Value::new_str(name), false)?;
+            self.add_instr(Instruction::GetGlobal { index })
             // TODO: make error if not repl
             // Err(CompileError::UndefinedVariable { name })
         }
@@ -256,7 +254,7 @@ impl Compiler {
             UnaryOp::Minus => UnaryInstr::Negate,
             UnaryOp::Bang => UnaryInstr::Not,
         };
-        self.chunk.push_instr(Instruction::Unary(unary))
+        self.add_instr(Instruction::Unary(unary))
     }
 
     fn binary(&mut self, left: Expr, right: Expr, op: BinaryOp) -> CompileResult<()> {
@@ -276,7 +274,7 @@ impl Compiler {
             BinaryOp::EqualEqual => BinaryInstr::Eq,
             BinaryOp::BangEqual => BinaryInstr::Ne,
         };
-        self.chunk.push_instr(Instruction::Bin(binary))
+        self.add_instr(Instruction::Bin(binary))
     }
 
     fn tuple(&mut self, exprs: Vec<Expr>) -> CompileResult<()> {
@@ -284,7 +282,7 @@ impl Compiler {
         for expr in exprs {
             self.compile_expr(expr)?
         }
-        self.chunk.push_instr(Instruction::Tuple { len })
+        self.add_instr(Instruction::Tuple { len })
     }
 
     fn access(&mut self, table: Expr, field: Expr) -> CompileResult<()> {
@@ -292,7 +290,7 @@ impl Compiler {
         let access_instr = match field {
             Expr::Literal(lit) => match lit {
                 Literal::Str(string) => {
-                    let index = self.chunk.add_constant(string.into())?;
+                    let index = self.add_constant(string.into(), false)?;
                     Instruction::GetFieldImm { index }
                 }
                 _ => {
@@ -305,13 +303,13 @@ impl Compiler {
                 Instruction::GetField
             }
         };
-        self.chunk.push_instr(access_instr)
+        self.add_instr(access_instr)
     }
 
     fn self_access(&mut self, table: Expr, field: String) -> CompileResult<()> {
         self.compile_expr(table)?;
-        let index = self.chunk.add_constant(field.into())?;
-        self.chunk.push_instr(Instruction::GetMethodImm { index })
+        let index = self.add_constant(field.into(), false)?;
+        self.add_instr(Instruction::GetMethodImm { index })
     }
 
     fn set(&mut self, variable: Expr, value: Expr) -> CompileResult<()> {
@@ -319,25 +317,24 @@ impl Compiler {
 
         match variable {
             Expr::Identifier(name) => {
-                let index = self.chunk.add_constant(name.clone().into())?;
+                let index = self.add_constant(name.clone().into(), true)?;
                 self.compile_expr(value)?;
                 if let Some((index, frame)) = self.resolve_local(name.as_str()) {
                     let index = index as u16;
-                    self.chunk
-                        .push_instr(Instruction::SetLocal { index, frame })
+                    self.add_instr(Instruction::SetLocal { index, frame })
                 } else {
-                    self.chunk.push_instr(Instruction::SetGlobal { index })
+                    self.add_instr(Instruction::SetGlobal { index })
                 }
             }
             Expr::Access { table, field } => {
                 self.compile_expr(value)?;
                 self.compile_expr(*field)?;
                 self.compile_expr(*table)?;
-                self.chunk.push_instr(Instruction::SetField)
+                self.add_instr(Instruction::SetField)
             }
             _ => Err(CompileError::InvalidAssignmentTarget(variable)),
         }?;
-        self.chunk.push_instr(Instruction::Unit)
+        self.add_instr(Instruction::Unit)
     }
 
     fn table_init(&mut self, keys: Option<Vec<Expr>>, values: Vec<Expr>) -> CompileResult<()> {
@@ -358,14 +355,13 @@ impl Compiler {
             }
         };
         let len = len as u16;
-        self.chunk
-            .push_instr(Instruction::InitTable { len, has_keys })
+        self.add_instr(Instruction::InitTable { len, has_keys })
     }
 
     fn function_def(&mut self, args: Vec<String>, body: Vec<Statement>) -> CompileResult<()> {
-        let patch_index = self.chunk.push_placeholder()?; // To prevent accidentally entering a function
+        // let patch_index = self.chunk.push_placeholder()?; // To prevent accidentally entering a function
         let args_len = args.len() as u8;
-        let code_start = self.chunk.instructions().len() - 1;
+        // let code_start = self.chunk.instructions().len() - 1;
         self.enter_function();
         for arg in args {
             self.push_local(arg);
@@ -373,21 +369,15 @@ impl Compiler {
         for stmt in body {
             self.compile_stmt(stmt)?;
         }
-        let (pop_count, closure_scope) = self.exit_function();
-        for _ in 0..pop_count {
-            self.chunk.push_instr(Instruction::Pop)?;
-        }
-        self.chunk.push_instr(Instruction::Return {
-            return_value: false,
-        })?;
+        let closure_scope = self.exit_function()?;
         // Patch after inserting pop instructions
-        let offset = self.chunk.instructions().len() - patch_index;
-        self.chunk
-            .patch_placeholder(patch_index, offset as i8, JumpCondition::None)?;
+        // let offset = self.chunk.instructions().len() - patch_index;
+        // self.chunk.patch_placeholder(patch_index, offset as i8, JumpCondition::None)?;
         // Add new func proto
         let upvalues = closure_scope.upvalues;
-        let proto_index = self.chunk.push_proto(code_start, args_len, upvalues);
-        self.chunk.push_instr(Instruction::FuncDef { proto_index })
+        let instructions = closure_scope.instructions;
+        let proto_index = self.chunk.push_proto(args_len, upvalues, instructions);
+        self.add_instr(Instruction::FuncDef { proto_index })
     }
 
     fn call(&mut self, func: Expr, args: Vec<Expr>) -> CompileResult<()> {
@@ -396,7 +386,77 @@ impl Compiler {
             self.compile_expr(arg)?;
         }
         self.compile_expr(func)?;
-        self.chunk.push_instr(Instruction::Call { args_len })
+        self.add_instr(Instruction::Call { args_len })
+    }
+}
+
+/**
+ * Utility
+ */
+
+impl Compiler {
+    fn add_instr(&mut self, instruction: Instruction) -> CompileResult<()> {
+        // self.chunk.instructions_mut().push(instruction);
+        self.instructions_mut().push(instruction);
+        Ok(())
+    }
+
+    fn instructions(&self) -> &[Instruction] {
+        match self.closure_scopes.last() {
+            Some(closure_scope) => {
+                &closure_scope.instructions
+            }
+            None => self.chunk.instructions(),
+        }
+    }
+
+    fn instructions_mut(&mut self) -> &mut Vec<Instruction> {
+        match self.closure_scopes.last_mut() {
+            Some(closure_scope) => {
+                &mut closure_scope.instructions
+            }
+            None => self.chunk.instructions_mut()
+        }
+    }
+
+    fn add_placeholder(&mut self) -> CompileResult<usize> {
+        self.add_instr(Instruction::Placeholder)?;
+        Ok(self.instructions().len() - 1)
+    }
+
+    fn patch_placeholder(
+        &mut self,
+        index: usize,
+        jump_offset: i8,
+        jump_cond: JumpCondition,
+    ) -> CompileResult<()> {
+        let offset = jump_offset;
+        let instr = match jump_cond {
+            JumpCondition::None => Instruction::Jump { offset },
+            JumpCondition::WhenTrue => Instruction::JumpIf {
+                when_true: true,
+                offset,
+            },
+            JumpCondition::WhenFalse => Instruction::JumpIf {
+                when_true: false,
+                offset,
+            },
+        };
+        match self.instructions()[index] {
+            Instruction::Placeholder | Instruction::Jump { .. } | Instruction::JumpIf { .. } => {
+                self.instructions_mut()[index] = instr;
+                Ok(())
+            }
+            _ => Err(CompileError::WrongPatch(self.instructions()[index])),
+        }
+    }
+
+    fn add_constant(&mut self, constant: Value, push_stack: bool) -> CompileResult<u8> {
+        let index = self.chunk.add_constant(constant)?;
+        if push_stack {
+            self.add_instr(Instruction::Constant { index })?;
+        }
+        Ok(index)   
     }
 }
 
@@ -447,6 +507,7 @@ impl Compiler {
             depth: self.depth,
             local_start: self.locals.len(),
             upvalues: Vec::new(),
+            instructions: Vec::new(),
         })
     }
 
@@ -460,8 +521,14 @@ impl Compiler {
         pop_count
     }
 
-    fn exit_function(&mut self) -> (usize, ClosureScope) {
-        let closure_scope = self.closure_scopes.pop().unwrap();
-        (self.scope_decr(), closure_scope)
+    fn exit_function(&mut self) -> CompileResult<ClosureScope> {
+        let pop_count = self.scope_decr();
+        for _ in 0..pop_count {
+            self.add_instr(Instruction::Pop)?;
+        }
+        self.add_instr(Instruction::Return {
+            return_value: false,
+        })?;
+        Ok(self.closure_scopes.pop().unwrap())
     }
 }

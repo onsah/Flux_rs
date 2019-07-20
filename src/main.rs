@@ -28,8 +28,9 @@ fn main() -> Result<(), error::FluxError> {
         file.read_to_string(&mut buffer).unwrap();
         let mut parser = Parser::new(&buffer)?;
         let ast = parser.parse().unwrap();
+        debug!("{:#?}", &ast);
         let chunk = Compiler::compile(ast)?;
-        debug!("{:?}", &chunk);
+        debug!("{:#?}", &chunk);
         print_instructions(&chunk);
         let mut vm = Vm::new();
         vm.run(chunk)?;

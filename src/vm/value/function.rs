@@ -1,5 +1,5 @@
 use super::{Table, Value};
-use crate::compiler::FuncProto;
+use crate::compiler::{FuncProto, Instruction};
 use crate::vm::{RuntimeResult, Vm};
 use std::cell::RefCell;
 use std::fmt::{Debug, Display, Formatter};
@@ -15,7 +15,7 @@ pub enum Function {
 #[derive(Clone, Debug)]
 pub struct UserFunction {
     args_len: u8,
-    code_start: usize,
+    proto_index: usize,
     upvalues: Vec<UpValue>,
     this: Option<Rc<RefCell<Table>>>,
 }
@@ -43,8 +43,8 @@ pub enum ArgsLen {
 }
 
 impl Function {
-    pub fn new_user(proto: &FuncProto) -> Self {
-        Function::User(UserFunction::new(proto))
+    pub fn new_user(proto: &FuncProto, proto_index: usize) -> Self {
+        Function::User(UserFunction::new(proto, proto_index))
     }
 
     pub fn args_len(&self) -> ArgsLen {
@@ -65,10 +65,10 @@ impl Function {
 impl UserFunction {
     pub const MAX_UPVALUES: u8 = std::u8::MAX;
 
-    pub fn new(proto: &FuncProto) -> Self {
+    pub fn new(proto: &FuncProto, proto_index: usize) -> Self {
         UserFunction {
             args_len: proto.args_len,
-            code_start: proto.code_start,
+            proto_index,
             // TODO: Impl Into<UpValue> for UpValueDesc
             upvalues: proto
                 .upvalues
@@ -98,10 +98,6 @@ impl UserFunction {
         }
     }
 
-    pub fn code_start(&self) -> usize {
-        self.code_start
-    }
-
     pub fn upvalues(&self) -> &[UpValue] {
         self.upvalues.as_slice()
     }
@@ -112,6 +108,10 @@ impl UserFunction {
 
     pub fn extract_upvalues(self) -> Vec<UpValue> {
         self.upvalues
+    }
+
+    pub fn proto_index(&self) -> usize {
+        self.proto_index
     }
 
     pub fn is_method(&self) -> bool {
@@ -154,14 +154,14 @@ impl NativeFunction {
 
 impl PartialEq for UserFunction {
     fn eq(&self, rhs: &Self) -> bool {
-        self.code_start == rhs.code_start
+        self.proto_index == rhs.proto_index
     }
 }
 
 impl Hash for UserFunction {
     // Code start should be unique
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.code_start.hash(state)
+        self.proto_index.hash(state)
     }
 }
 

@@ -1,6 +1,6 @@
 mod error;
 mod frame;
-mod lib;
+pub mod lib;
 #[cfg(test)]
 mod tests;
 mod value;
@@ -165,12 +165,15 @@ impl Vm {
                 }
                 Instruction::FuncDef { proto_index } => {
                     let proto = self.current_chunk().prototypes()[proto_index].clone();
-                    self.stack.push(Value::Function(Function::new_user(&proto)))
+                    self.stack.push(Value::Function(Function::new_user(&proto, proto_index)))
                 }
                 Instruction::Call { args_len } => {
                     let function = self.pop_stack()?;
                     match function {
-                        Value::Function(function) => self.call(function, args_len)?,
+                        Value::Function(function) => {
+                            self.call(function, args_len)?;
+                            continue;   // Don't increment pc
+                        },
                         _ => return Err(RuntimeError::TypeError),
                     }
                 }
@@ -318,13 +321,13 @@ impl Vm {
 
     fn call_user(&mut self, mut function: UserFunction, pushed_args: u8) -> RuntimeResult<()> {
         if pushed_args == function.args_len() {
-            let pc = function.code_start();
+            let proto_index = function.proto_index();
             let stack_top = self.stack.len() - function.args_len() as usize;
             if let Some(this) = function.take_this() {
                 self.stack.push(this.into())
             }
             let upvalues = function.extract_upvalues();
-            self.frames.push(Frame::new(pc, stack_top, upvalues));
+            self.frames.push(Frame::new(0, proto_index, stack_top, upvalues));
             Ok(())
         } else {
             Err(RuntimeError::WrongNumberOfArgs {
@@ -337,8 +340,8 @@ impl Vm {
     fn call_user_blocking(&mut self, function: UserFunction, pushed_args: u8) -> RuntimeResult<()> {
         self.call_user(function, pushed_args)?;
         // If we don't have these lines we stuck in loop because jump instructions consider incrementing
-        let f = self.current_frame_mut()?;
-        f.pc += 1;
+        /* let f = self.current_frame_mut()?;
+        f.pc += 1; */
         self.execute()
     }
 
@@ -365,6 +368,8 @@ impl Vm {
         }
         let value = (native_fn.function)(self, args)?;
         self.stack.push(value);
+        let f = self.current_frame_mut()?;
+        f.pc += 1;
         Ok(())
     }
 
@@ -458,7 +463,7 @@ impl Vm {
 
     fn next_instr(&mut self) -> RuntimeResult<Instruction> {
         let f = self.current_frame()?;
-        let instr = self.current_chunk().instructions()[f.pc];
+        let instr = self.instructions()?[f.pc];
         debug!("pc: {}, instr: {:?}", f.pc, instr);
         Ok(instr)
     }
@@ -480,6 +485,13 @@ impl Vm {
     #[inline]
     fn current_chunk(&self) -> &Chunk {
         self.current_chunk.as_ref().unwrap()
+    }
+
+    fn instructions(&self) -> RuntimeResult<&[Instruction]> {
+        Ok(match self.current_frame()?.proto_index {
+            Some(index) => self.current_chunk().prototypes()[index].instructions.as_ref(),
+            None => self.current_chunk().instructions(),
+        })
     }
 
     fn pop_stack(&mut self) -> RuntimeResult<Value> {

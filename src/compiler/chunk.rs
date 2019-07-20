@@ -1,7 +1,9 @@
 use super::Instruction;
 use super::UpValueDesc;
 use super::{CompileError, CompileResult};
-use crate::vm::{Value, PREDEFINED_CONSTANTS};
+use super::ClosureScope;
+use crate::vm::{Value};
+use crate::vm::lib::constant_names;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Chunk {
@@ -12,9 +14,9 @@ pub struct Chunk {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct FuncProto {
-    pub code_start: usize,
     pub args_len: u8,
     pub upvalues: Vec<UpValueDesc>,
+    pub instructions: Box<[Instruction]>,
 }
 
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -30,22 +32,15 @@ impl Chunk {
     pub fn new() -> Self {
         Chunk {
             instructions: Vec::new(),
-            constants: PREDEFINED_CONSTANTS
-                .iter()
-                .map(|(s, _)| Value::Embedded(s))
-                .collect(),
+            constants: constant_names().collect(),
             prototypes: Vec::new(),
         }
     }
 
     #[inline]
     pub fn push_instr(&mut self, instr: Instruction) -> CompileResult<()> {
-        if self.instructions().len() < Self::MAX_CONST {
-            self.instructions.push(instr);
-            Ok(())
-        } else {
-            Err(CompileError::TooManyConstants)
-        }
+        self.instructions.push(instr);
+        Ok(())
     }
 
     // Adds constant if not present
@@ -53,7 +48,6 @@ impl Chunk {
         let index = match &constant {
             Value::Str(string) => {
                 if let Some(index) = self.has_string(string) {
-                    self.push_instr(Instruction::Constant { index })?;
                     Ok(index)
                 } else {
                     self.push_constant(constant)
@@ -61,16 +55,19 @@ impl Chunk {
             }
             _ => self.push_constant(constant),
         }?;
-        self.pop_constant();
         Ok(index)
     }
 
     #[inline]
     pub fn push_constant(&mut self, constant: Value) -> CompileResult<u8> {
-        self.constants.push(constant);
-        let index = (self.constants.len() - 1) as u8;
-        self.push_instr(Instruction::Constant { index })?;
-        Ok(index)
+        if self.constants.len() >= Self::MAX_CONST {
+            Err(CompileError::TooManyConstants)
+        } else {
+            self.constants.push(constant);
+            let index = (self.constants.len() - 1) as u8;
+            // self.push_instr(Instruction::Constant { index })?;
+            Ok(index)
+        }
     }
 
     pub fn has_string(&self, string: &str) -> Option<u8> {
@@ -131,14 +128,14 @@ impl Chunk {
 
     pub fn push_proto(
         &mut self,
-        code_start: usize,
         args_len: u8,
         upvalues: Vec<UpValueDesc>,
+        instructions: Vec<Instruction>
     ) -> usize {
         self.prototypes.push(FuncProto {
-            code_start,
             args_len,
             upvalues,
+            instructions: instructions.into_boxed_slice(),
         });
         self.prototypes.len() - 1
     }
@@ -147,13 +144,12 @@ impl Chunk {
         self.prototypes.as_slice()
     }
 
-    #[inline]
-    fn pop_constant(&mut self) {
-        self.instructions.pop().unwrap();
-    }
-
     pub fn instructions(&self) -> &[Instruction] {
         self.instructions.as_slice()
+    }
+
+    pub fn instructions_mut(&mut self) -> &mut Vec<Instruction> {
+        &mut self.instructions
     }
 
     pub fn constants(&self) -> &[Value] {
