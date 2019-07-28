@@ -3,7 +3,7 @@ mod error;
 mod instruction;
 
 use crate::parser::{BinaryOp, Expr, Literal, Statement, UnaryOp};
-use crate::vm::{Value, Integer};
+use crate::vm::{Integer, Value};
 pub use chunk::{Chunk, FuncProto, JumpCondition};
 pub use error::CompileError;
 pub use instruction::{BinaryInstr, Instruction, UnaryInstr};
@@ -146,11 +146,7 @@ impl Compiler {
         };
         // Jump one further
         if has_else {
-            self.patch_placeholder(
-                patch_index,
-                (offset + 1) as i8,
-                JumpCondition::WhenFalse,
-            )?;
+            self.patch_placeholder(patch_index, (offset + 1) as i8, JumpCondition::WhenFalse)?;
         }
         Ok(())
     }
@@ -189,9 +185,10 @@ impl Compiler {
     fn literal(&mut self, lit: Literal) -> CompileResult<()> {
         match lit {
             Literal::Nil => self.add_instr(Instruction::Nil),
-            Literal::Bool(b) => self.add_instr(match b {
-                true => Instruction::True,
-                false => Instruction::False,
+            Literal::Bool(b) => self.add_instr(if b {
+                Instruction::True
+            } else {
+                Instruction::False
             }),
             Literal::Number(n) => match n.fract() == 0.0 {
                 true => self.add_constant(Value::Int(n.trunc() as Integer), true),
@@ -234,9 +231,7 @@ impl Compiler {
                     let closure = self.closure_scopes.last_mut().unwrap();
                     closure.upvalues.len() as u16 - 1
                 };
-                self.add_instr(Instruction::GetUpval {
-                    index: upval_index,
-                })
+                self.add_instr(Instruction::GetUpval { index: upval_index })
             } else {
                 self.add_instr(Instruction::GetLocal { index, frame })
             }
@@ -403,19 +398,15 @@ impl Compiler {
 
     fn instructions(&self) -> &[Instruction] {
         match self.closure_scopes.last() {
-            Some(closure_scope) => {
-                &closure_scope.instructions
-            }
+            Some(closure_scope) => &closure_scope.instructions,
             None => self.chunk.instructions(),
         }
     }
 
     fn instructions_mut(&mut self) -> &mut Vec<Instruction> {
         match self.closure_scopes.last_mut() {
-            Some(closure_scope) => {
-                &mut closure_scope.instructions
-            }
-            None => self.chunk.instructions_mut()
+            Some(closure_scope) => &mut closure_scope.instructions,
+            None => self.chunk.instructions_mut(),
         }
     }
 
@@ -456,7 +447,7 @@ impl Compiler {
         if push_stack {
             self.add_instr(Instruction::Constant { index })?;
         }
-        Ok(index)   
+        Ok(index)
     }
 }
 
@@ -466,24 +457,20 @@ impl Compiler {
 impl Compiler {
     // TODO: Write tests for local scoping
     pub fn resolve_local(&self, name: &str) -> Option<(usize, u8)> {
-        self.locals
-            .iter()
-            .enumerate()
-            .rev()
-            .find_map(|(i, l)| match l.name == name {
-                true => {
-                    // TODO make this readable
-                    let (offset, closure_depth) = match l.closure {
-                        Some(i) => (
-                            self.closure_scopes[i as usize].local_start,
-                            self.closure_scopes.len() as u8 - i,
-                        ),
-                        None => (0, 0),
-                    };
-                    Some((i - offset, closure_depth))
-                }
-                false => None,
-            })
+        self.locals.iter().enumerate().rev().find_map(|(i, l)| {
+            if l.name == name {
+                let (offset, closure_depth) = match l.closure {
+                    Some(i) => (
+                        self.closure_scopes[i as usize].local_start,
+                        self.closure_scopes.len() as u8 - i,
+                    ),
+                    None => (0, 0),
+                };
+                Some((i - offset, closure_depth))
+            } else {
+                None
+            }
+        })
     }
 
     fn push_local(&mut self, name: String) {

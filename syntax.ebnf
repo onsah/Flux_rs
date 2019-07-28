@@ -1,0 +1,55 @@
+stat = setStat | letStat | expr ';' |
+    'if' expr 'then' block ['else' expr] 'end' | 
+    'while' expr 'then' block 'end' |
+    'do' block 'end';
+
+setStat = get '=' expr;
+
+letStat = 'let' identifier '=' expr;
+
+get = identifier | expr '[' expr ']' | expr '.' identifier;
+
+digit = "0" | .. | "9";
+
+letter = ("A" | .. | "Z") | ("a" | ..  | "b");
+
+number = *{digit};
+
+identList = identifier {',' identifier};
+
+identifier = nameChar {nameChar | digit};
+
+nameChar = letter | "_";
+
+stringLit = '"' {nameChar | digit} '"';
+
+unaryOp = "-" | "!";
+
+binOp = "+" | "-" | "*" | "/" | 
+    "&" | "|" | ">" | "<" | ">=" | "<=" | '==';
+
+binary = expr binOp expr;
+
+unary = unaryOp expr;
+
+expr = 'nil' | 'false' | 'true' | identifier | 
+    number | stringLit | call | functiondef | 
+    tableInit | expr binOp expr | unaryOp expr | block |
+    '(' expList ')' | 'return' [expr] |
+    'if' expr 'then' block 'else' expr 'end';
+
+block = {stat} [expr]; (* If no expr block evaluates to '()' *)
+
+expList = expr {',' expr};
+
+call = expr '(' [expList] ')';
+
+functiondef = 'fn' funcbody;
+
+funcbody = '(' [identList] ')' (expr 'end' | '=>' expr);
+
+tableInit = '{' [fieldList] '}';
+
+fieldList = field {',' field} [','];
+
+field = identifier '=' expr | '[' expr ']' '=' expr | expr;

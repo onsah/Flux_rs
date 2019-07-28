@@ -5,17 +5,19 @@ Design goals are:
 * Null safety (normal type vs nullable type)
 * Functional programming features (passing functions, returning functions)
 
-## Status
-* functions work as any other value
+## What is working?
+* recursion
 * closures
-* tables 
-* most statements
+* tables
+* OOP
+* local scoping
+
+## What is **not** working?
+* block expressions
+* nil checking at compile time
+* pattern matching for multiple return values
 
 ## Roadmap
-* Implement statements (done)
-* Implement functions (as first class citizen) (done)
-* Implement closures (done!)
-* Implement simple OOP (like lua metatables) (done)
 * Simple pattern matching for tuple expressions
 * Nullable variables and static checking for nullable types
 * Optimization for tables used as arrays (Like lua)
@@ -32,18 +34,22 @@ let square = fn(x)
     return x * x
 end
 let square5 = bind(square, 5)
-println(square5())
+println(square5())  // 25
 ```
 ### Cached fibonacci program
 ```
-let cache = { 0, 1 }
-let fib = fn(n)
-    if n <= 0 then
-        return 0
-    else if cache[n] == nil then
-        cache[n] = fib(n - 1) + fib(n - 2)
+let fib = fn(n) 
+    // We use a closure so cache variable is not leaked to the global scope
+    let cache = { 0, 1 }
+    let __fib = fn(n)
+        if n <= 0 then
+            return 0
+        else if cache[n] == nil then
+            cache[n] = __fib(n - 1) + __fib(n - 2)
+        end
+        return cache[n]
     end
-    return cache[n]
+    return __fib(n)
 end
 print("enter a number: ")
 let i = number(readline());

@@ -58,9 +58,13 @@ where
         } else if self.match_token(TokenType::Fn).is_ok() {
             self.fn_stmt()
         } else {
-            let expr = self.expr_stmt()?;
-            let _ = self.match_token(TokenType::Semicolon);
-            Ok(expr)
+            // self.expr_stmt()
+            let expr = self.expression()?;
+            if self.match_token(TokenType::Semicolon).is_ok() {
+                Ok(Statement::Expr(expr))
+            } else {
+                Err(ParserError::UnexpectedExpr(expr))
+            }
         }
     }
 
@@ -69,7 +73,7 @@ where
         let name = token.text();
         self.match_token(TokenType::Equal)?;
         let value = self.expression()?;
-        let _ = self.match_token(TokenType::Semicolon).is_ok();
+        self.match_token(TokenType::Semicolon)?;
         Ok(Statement::Let {
             name: name.to_string(),
             value,
@@ -132,11 +136,8 @@ where
     }
 
     fn return_stmt(&mut self) -> Result<Statement> {
-        let expr = if self.match_token(TokenType::Semicolon).is_ok() {
-            Expr::Literal(Literal::Unit)
-        } else {
-            self.expression()?
-        };
+        let expr = self.expression().unwrap_or(Expr::Literal(Literal::Unit));
+        self.match_token(TokenType::Semicolon)?;
         Ok(Statement::Return(expr))
     }
 
@@ -145,10 +146,6 @@ where
         let name = token.extract_text();
         let value = self.function()?;
         Ok(Statement::Let { name, value })
-    }
-
-    fn expr_stmt(&mut self) -> Result<Statement> {
-        Ok(Statement::Expr(self.expression()?))
     }
 
     pub(self) fn expression(&mut self) -> Result<Expr> {
@@ -163,7 +160,6 @@ where
         let left = self.comparasion()?;
         if self.match_token(TokenType::Equal).is_ok() {
             let right = self.comparasion()?;
-            let _ = self.match_token(TokenType::Semicolon);
             Ok(Expr::Set {
                 variable: Box::new(left),
                 value: Box::new(right),
@@ -322,6 +318,8 @@ where
             self.table_init()
         } else if self.match_token(TokenType::Fn).is_ok() {
             self.function()
+        } else if self.match_token(TokenType::Do).is_ok() {
+            self.block_expr()
         } else {
             Err(ParserError::UnexpectedToken {
                 token: self.current()?,
@@ -411,6 +409,27 @@ where
         let body = self.block_stmt()?;
         self.match_token(TokenType::End)?;
         Ok(Expr::Function { args, body })
+    }
+
+    fn block_expr(&mut self) -> Result<Expr> {
+        //...
+        let mut stmts = Vec::new();
+        let expr = loop {
+            match self.statement() {
+                Ok(stmt) => stmts.push(stmt),
+                Err(err) => {
+                    match err {
+                        ParserError::UnexpectedExpr(expr) => break expr,
+                        _ => return Err(err),
+                    }
+                }
+            }
+        };
+        self.match_token(TokenType::End)?;
+        Ok(Expr::Block {
+            stmts,
+            expr: Box::new(expr),
+        })
     }
 }
 
@@ -615,5 +634,56 @@ mod tests {
                 }
             }
         )
+    } 
+    
+    #[test]
+    fn block_expr_works() {
+        let source = 
+        "
+            let foo = do
+                let bar = foo;
+                5
+            end;
+        ";
+        let mut parser = Parser::new(source).unwrap();
+        let parsed = parser.parse().unwrap();
+        assert_eq!(parsed, vec![
+            Statement::Let {
+                name: "foo".to_string(),
+                value: Expr::Block {
+                    stmts: vec![Statement::Let {
+                        name: "bar".to_string(),
+                        value: Expr::Identifier("foo".to_string()),
+                    }],
+                    expr: Box::new(Expr::Literal(Literal::Number(5.0)))
+                }
+            }
+        ]);
+        let source = 
+        "
+            let square = fn(x)
+                x * x
+            end;
+        ";
+        let source = 
+        "
+            let bar = fn()
+                return 5;
+            end;
+        ";
+    }
+
+    // #[test]
+    fn if_expr_works() {
+        let source = 
+        "
+            let x = if true then
+                \"foo\"
+            else
+                \"bar\"
+            end;
+        ";
+        let mut parser = Parser::new(source).unwrap();
+        let parsed = parser.parse().unwrap();
     }
 }

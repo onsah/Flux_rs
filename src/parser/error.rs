@@ -1,4 +1,5 @@
 use crate::scanner::{Token, TokenType};
+use super::{Statement, Expr};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum ParserError {
@@ -8,4 +9,8 @@ pub enum ParserError {
     // mixing array and table initialization
     // Ex: let t = { 3, foo = 5 }
     InitError,
+    // Expectes return statement or an expression at the end of the block
+    ExprOrReturn,
+    UnexpectedStmt(Statement),
+    UnexpectedExpr(Expr),
 }

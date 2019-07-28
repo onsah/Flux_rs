@@ -42,7 +42,6 @@ impl<'a> Scanner<'a> {
                     _ => return Err(e),
                 },
             }
-            // println!("scanned: {:?}", self.tokens.last().unwrap());
         }
     }
 
@@ -112,7 +111,7 @@ impl<'a> Scanner<'a> {
                 ' ' | '\t' => {}
                 '\n' => self.line += 1,
                 c => {
-                    if c.is_alphabetic() {
+                    if c.is_alphabetic() || c == '_' {
                         let token = self.identifier(start)?;
                         match KEYWORDS.get(token.text.as_str()) {
                             Some(&typ) => {
@@ -157,7 +156,7 @@ impl<'a> Scanner<'a> {
     }
 
     fn identifier(&mut self, start: usize) -> Result<Token> {
-        let end = self.skip_while(start, char::is_alphanumeric);
+        let end = self.skip_while(start, |c| c.is_alphanumeric() || c == '_');
         Ok(self.new_token(TokenType::Identifier, start, end + 1))
     }
 
@@ -326,5 +325,39 @@ mod tests {
                 line: 2
             }
         )
+    }
+
+    #[test]
+    fn underscore_works() {
+        let source = "let __underscored_variable = 5";
+        let mut scanner = Scanner::new(source);
+        let scanned = scanner.scan().unwrap();
+        assert_eq!(scanned, &[
+            Token {
+                typ: TokenType::Let,
+                text: "let".to_string(),
+                line: 1,
+            },
+            Token {
+                typ: TokenType::Identifier,
+                text: "__underscored_variable".to_string(),
+                line: 1,
+            },
+            Token {
+                typ: TokenType::Equal,
+                text: '='.to_string(),
+                line: 1,
+            },
+            Token {
+                typ: TokenType::Number,
+                text: "5".to_string(),
+                line: 1,
+            },
+            Token {
+                typ: TokenType::Eof,
+                text: "".to_string(),
+                line: 1,
+            },
+        ]);
     }
 }

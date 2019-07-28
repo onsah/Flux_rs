@@ -5,8 +5,8 @@ use crate::parser::Parser;
 unit_test! {
     wrong_number_of_args,
     "
-    let dummy = fn(a, b, c) end \
-    dummy()
+    let dummy = fn(a, b, c) end;
+    dummy();
     ",
     Err(RuntimeError::WrongNumberOfArgs {
         expected: 3,
@@ -17,8 +17,8 @@ unit_test! {
 unit_test! {
     arithmetic,
     "
-    let x = 5 * 2 + 5 - 5
-    return x
+    let x = 5 * 2 + 5 - 5;
+    return x;
     ",
     Ok(Value::Int(10))
 }
@@ -26,8 +26,8 @@ unit_test! {
 unit_test! {
     simple_fn_call,
     "
-    let foo = fn(x) return x * x end 
-    return foo(5)
+    let foo = fn(x) return x * x; end;
+    return foo(5);
     ",
     Ok(Value::Int(25))
 }
@@ -35,7 +35,8 @@ unit_test! {
 unit_test! {
     integer_to_float,
     "
-    let i = 5; return 5 / 2
+    let i = 5; 
+    return 5 / 2;
     ",
     Ok(Value::Number(2.5))
 }
@@ -44,10 +45,13 @@ unit_test! {
     recursion,
     "
     let fib = fn(n) 
-        if n <= 1 then return n
-        else return fib(n - 1) + fib(n - 2) end
+        if n <= 1 then 
+            return n;
+        else 
+            return fib(n - 1) + fib(n - 2); 
+        end
     end;
-    return fib(6)
+    return fib(6);
     ",
     Ok(Value::Int(8))
 }
@@ -58,13 +62,13 @@ unit_test! {
     let foo = fn(x) 
         return fn(y)
             return fn()
-                return x + y 
-            end
-        end 
-    end
-    let bar = foo(10)
-    let barr = bar(5)
-    return barr()
+                return x + y; 
+            end;
+        end;
+    end;
+    let bar = foo(10);
+    let barr = bar(5);
+    return barr();
     ",
     Ok(Value::Int(15))
 }
@@ -74,22 +78,22 @@ unit_test! {
     "
     let obj = {
         \"setX\" = fn(x, self)
-            self.x = x
+            self.x = x;
         end,
         \"getX\" = fn(self)
-            return self.x
+            return self.x;
         end,
         \"setXLater\" = fn(x, self) 
             return fn()
-                self.x = x
-            end
+                self.x = x;
+            end;
         end
-    }
-    obj:setX(10)
-    let setLater = obj:setXLater(5)
+    };
+    obj:setX(10);
+    let setLater = obj:setXLater(5);
     let oldX = obj:getX();
-    setLater()
-    return (oldX, obj:getX())
+    setLater();
+    return (oldX, obj:getX());
     ",
     Ok(Value::Tuple(vec![
         Value::Int(10),
@@ -100,7 +104,7 @@ unit_test! {
 unit_test! {
     assert,
     "
-    assert(false)
+    assert(false);
     ",
     Err(RuntimeError::AssertionFailed(Value::Bool(false)))
 }
@@ -110,11 +114,11 @@ unit_test! {
     "
     let class = {
         \"init\" = fn(self)
-            self.foo = -5
+            self.foo = -5;
         end
-    }
-    let obj = new(class)
-    return obj.foo
+    };
+    let obj = new(class);
+    return obj.foo;
     ",
     Ok(Value::Int(-5))
 }
@@ -124,11 +128,11 @@ unit_test! {
     "
     let class = {
         \"init\" = fn(x, self)
-            self.foo = x
+            self.foo = x;
         end
-    }
-    let obj = new(3, class)
-    return obj.foo
+    };
+    let obj = new(3, class);
+    return obj.foo;
     ",
     Ok(Value::Int(3))
 }
@@ -136,16 +140,16 @@ unit_test! {
 unit_test! {
     scoping,
     "
-    let foo = 1
+    let foo = 1;
     do
-        let foo = 2
-        assert(foo == 2)
+        let foo = 2;
+        assert(foo == 2);
         do 
-            let foo = 3
-            assert(foo == 3)
+            let foo = 3;
+            assert(foo == 3);
         end
     end
-    assert(foo == 1)
+    assert(foo == 1);
     ",
     Ok(Value::Unit)
 }
@@ -157,12 +161,12 @@ unit_test! {
         return fn(y)
             return fn(z)
                 return fn(t)
-                    return x + y + z + t
-                end
-            end
-        end
-    end
-    return foo(1)(2)(3)(4)
+                    return x + y + z + t;
+                end;
+            end;
+        end;
+    end;
+    return foo(1)(2)(3)(4);
     ",
     Ok(Value::Int(10))
 }

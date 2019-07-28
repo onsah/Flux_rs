@@ -12,7 +12,9 @@ pub use lib::PREDEFINED_CONSTANTS;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
-pub use value::{ArgsLen, Function, NativeFunction, Table, UpValue, UserFunction, Value, Integer, Float};
+pub use value::{
+    ArgsLen, Float, Function, Integer, NativeFunction, Table, UpValue, UserFunction, Value,
+};
 
 pub type RuntimeResult<T> = Result<T, RuntimeError>;
 
@@ -165,15 +167,16 @@ impl Vm {
                 }
                 Instruction::FuncDef { proto_index } => {
                     let proto = self.current_chunk().prototypes()[proto_index].clone();
-                    self.stack.push(Value::Function(Function::new_user(&proto, proto_index)))
+                    self.stack
+                        .push(Value::Function(Function::new_user(&proto, proto_index)))
                 }
                 Instruction::Call { args_len } => {
                     let function = self.pop_stack()?;
                     match function {
                         Value::Function(function) => {
                             self.call(function, args_len)?;
-                            continue;   // Don't increment pc
-                        },
+                            continue; // Don't increment pc
+                        }
                         _ => return Err(RuntimeError::TypeError),
                     }
                 }
@@ -327,7 +330,8 @@ impl Vm {
                 self.stack.push(this.into())
             }
             let upvalues = function.extract_upvalues();
-            self.frames.push(Frame::new(0, proto_index, stack_top, upvalues));
+            self.frames
+                .push(Frame::new(0, proto_index, stack_top, upvalues));
             Ok(())
         } else {
             Err(RuntimeError::WrongNumberOfArgs {
@@ -489,7 +493,9 @@ impl Vm {
 
     fn instructions(&self) -> RuntimeResult<&[Instruction]> {
         Ok(match self.current_frame()?.proto_index {
-            Some(index) => self.current_chunk().prototypes()[index].instructions.as_ref(),
+            Some(index) => self.current_chunk().prototypes()[index]
+                .instructions
+                .as_ref(),
             None => self.current_chunk().instructions(),
         })
     }

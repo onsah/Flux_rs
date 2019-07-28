@@ -1,5 +1,5 @@
 use super::value::{ArgsLen, Function, NativeFunction, Table};
-use super::{Value, Integer};
+use super::{Integer, Value};
 use crate::vm::{RuntimeError, Vm};
 use std::io::{self, Write};
 use std::rc::Rc;
@@ -15,7 +15,7 @@ pub const PREDEFINED_CONSTANTS: [(&str, Value); 7] = [
 ];
 
 #[inline]
-pub fn constant_names() -> impl Iterator<Item=Value> {
+pub fn constant_names() -> impl Iterator<Item = Value> {
     PREDEFINED_CONSTANTS.iter().map(|&(n, _)| n.into())
 }
 

@@ -40,6 +40,23 @@ pub enum Expr {
         func: Box<Expr>,
         args: Vec<Expr>,
     },
+    // Below are not added to compiler yet
+    Block {
+        stmts: Vec<Statement>,
+        expr: Box<Expr>,
+    },
+    If {
+        condition: Box<Expr>,
+        then_block: Box<Expr>,
+        // Else is mandatory when if is expression
+        else_block: Box<Expr>,
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct BlockExpr {
+    stmts: Vec<Statement>,
+    expr: Box<Expr>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

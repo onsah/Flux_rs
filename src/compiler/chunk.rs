@@ -1,9 +1,8 @@
 use super::Instruction;
 use super::UpValueDesc;
 use super::{CompileError, CompileResult};
-use super::ClosureScope;
-use crate::vm::{Value};
 use crate::vm::lib::constant_names;
+use crate::vm::Value;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Chunk {
@@ -30,11 +29,7 @@ impl Chunk {
     const MAX_CONST: usize = std::u8::MAX as usize;
 
     pub fn new() -> Self {
-        Chunk {
-            instructions: Vec::new(),
-            constants: constant_names().collect(),
-            prototypes: Vec::new(),
-        }
+        Self::default()
     }
 
     #[inline]
@@ -130,7 +125,7 @@ impl Chunk {
         &mut self,
         args_len: u8,
         upvalues: Vec<UpValueDesc>,
-        instructions: Vec<Instruction>
+        instructions: Vec<Instruction>,
     ) -> usize {
         self.prototypes.push(FuncProto {
             args_len,
@@ -154,5 +149,15 @@ impl Chunk {
 
     pub fn constants(&self) -> &[Value] {
         self.constants.as_slice()
+    }
+}
+
+impl Default for Chunk {
+    fn default() -> Self {
+        Chunk {
+            instructions: Vec::new(),
+            constants: constant_names().collect(),
+            prototypes: Vec::new(),
+        }
     }
 }

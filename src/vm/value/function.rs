@@ -1,5 +1,5 @@
 use super::{Table, Value};
-use crate::compiler::{FuncProto, Instruction};
+use crate::compiler::FuncProto;
 use crate::vm::{RuntimeResult, Vm};
 use std::cell::RefCell;
 use std::fmt::{Debug, Display, Formatter};
