@@ -319,7 +319,9 @@ where
         } else if self.match_token(TokenType::Fn).is_ok() {
             self.function()
         } else if self.match_token(TokenType::Do).is_ok() {
-            self.block_expr()
+            self.block_expr(TokenType::End)
+        } else if self.match_token(TokenType::If).is_ok() {
+            self.if_expr()
         } else {
             Err(ParserError::UnexpectedToken {
                 token: self.current()?,
@@ -411,7 +413,7 @@ where
         Ok(Expr::Function { args, body })
     }
 
-    fn block_expr(&mut self) -> Result<Expr> {
+    fn block_expr(&mut self, terminating_token: TokenType) -> Result<Expr> {
         //...
         let mut stmts = Vec::new();
         let expr = loop {
@@ -420,15 +422,29 @@ where
                 Err(err) => {
                     match err {
                         ParserError::UnexpectedExpr(expr) => break expr,
-                        _ => return Err(err),
+                        _ => break Expr::Literal(Literal::Unit),
                     }
                 }
             }
         };
-        self.match_token(TokenType::End)?;
+        self.match_token(terminating_token)?;
         Ok(Expr::Block {
             stmts,
             expr: Box::new(expr),
+        })
+    }
+
+    fn if_expr(&mut self) -> Result<Expr> {
+        let condition = self.expression()?;
+        self.match_token(TokenType::Then)?;
+        let then_block = self.block_expr(TokenType::Else)?;
+        // Since it is expression else should be always there
+        let else_block = self.block_expr(TokenType::End)?;
+        
+        Ok(Expr::If {
+            condition: Box::new(condition),
+            then_block: Box::new(then_block),
+            else_block: Box::new(else_block),
         })
     }
 }
@@ -634,12 +650,11 @@ mod tests {
                 }
             }
         )
-    } 
-    
+    }
+
     #[test]
     fn block_expr_works() {
-        let source = 
-        "
+        let source = "
             let foo = do
                 let bar = foo;
                 5
@@ -647,8 +662,9 @@ mod tests {
         ";
         let mut parser = Parser::new(source).unwrap();
         let parsed = parser.parse().unwrap();
-        assert_eq!(parsed, vec![
-            Statement::Let {
+        assert_eq!(
+            parsed,
+            vec![Statement::Let {
                 name: "foo".to_string(),
                 value: Expr::Block {
                     stmts: vec![Statement::Let {
@@ -657,16 +673,14 @@ mod tests {
                     }],
                     expr: Box::new(Expr::Literal(Literal::Number(5.0)))
                 }
-            }
-        ]);
-        let source = 
-        "
+            }]
+        );
+        let source = "
             let square = fn(x)
                 x * x
             end;
         ";
-        let source = 
-        "
+        let source = "
             let bar = fn()
                 return 5;
             end;
@@ -675,8 +689,7 @@ mod tests {
 
     // #[test]
     fn if_expr_works() {
-        let source = 
-        "
+        let source = "
             let x = if true then
                 \"foo\"
             else

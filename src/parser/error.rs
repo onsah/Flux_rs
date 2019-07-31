@@ -1,5 +1,5 @@
+use super::{Expr, Statement};
 use crate::scanner::{Token, TokenType};
-use super::{Statement, Expr};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum ParserError {

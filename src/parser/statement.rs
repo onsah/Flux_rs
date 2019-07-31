@@ -10,8 +10,8 @@ pub enum Statement {
     Block(Vec<Statement>),
     If {
         condition: Expr,
-        then_block: Box<Statement>,
-        else_block: Option<Box<Statement>>,
+        then_block: Box<Statement>, // block_expr
+        else_block: Option<Box<Statement>>, // block_expr
     },
     While {
         condition: Expr,

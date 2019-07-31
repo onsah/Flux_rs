@@ -117,7 +117,6 @@ impl Compiler {
         Ok(())
     }
 
-    // TODO: Better PLEASE
     fn if_stmt(
         &mut self,
         condition: Expr,
@@ -125,28 +124,21 @@ impl Compiler {
         else_block: Option<Statement>,
     ) -> CompileResult<()> {
         self.compile_expr(condition)?;
+
         let patch_index = self.add_placeholder()?;
         self.compile_stmt(then_block)?;
-        let offset = self.instructions().len() - patch_index;
-        if offset > std::i8::MAX as usize {
-            return Err(CompileError::TooLongToJump);
-        }
-        self.patch_placeholder(patch_index, offset as i8, JumpCondition::WhenFalse)?;
-        let has_else = if let Some(else_block) = else_block {
+
+        let offset = self.get_offset(patch_index)?;
+        if let Some(else_block) = else_block {
+            // We need to patch old jump to one forward since now in this place there will be an unconditional jump
+            self.patch_placeholder(patch_index, (offset + 1) as i8, JumpCondition::WhenFalse)?;
+
             let patch_index = self.add_placeholder()?;
             self.compile_stmt(else_block)?;
-            let offset = self.instructions().len() - patch_index;
-            if offset > std::i8::MAX as usize {
-                return Err(CompileError::TooLongToJump);
-            }
+            let offset = self.get_offset(patch_index)?;
             self.patch_placeholder(patch_index, offset as i8, JumpCondition::None)?;
-            true
         } else {
-            false
-        };
-        // Jump one further
-        if has_else {
-            self.patch_placeholder(patch_index, (offset + 1) as i8, JumpCondition::WhenFalse)?;
+            self.patch_placeholder(patch_index, offset as i8, JumpCondition::WhenFalse)?;
         }
         Ok(())
     }
@@ -178,6 +170,12 @@ impl Compiler {
             Expr::TableInit { keys, values } => self.table_init(keys, values),
             Expr::Function { args, body } => self.function_def(args, body),
             Expr::Call { func, args } => self.call(*func, args),
+            Expr::Block { stmts, expr } => self.block_expr(stmts, *expr),
+            Expr::If {
+                condition,
+                then_block,
+                else_block,
+            } => self.if_expr(*condition, *then_block, *else_block),
             _ => Err(CompileError::UnimplementedExpr(expr)),
         }
     }
@@ -383,6 +381,35 @@ impl Compiler {
         self.compile_expr(func)?;
         self.add_instr(Instruction::Call { args_len })
     }
+
+    fn block_expr(&mut self, stmts: Vec<Statement>, expr: Expr) -> CompileResult<()> {
+        for stmt in stmts {
+            self.compile_stmt(stmt)?;
+        }
+        self.compile_expr(expr)
+    }
+
+    fn if_expr(
+        &mut self,
+        condition: Expr,
+        then_block: Expr,
+        else_block: Expr,
+    ) -> CompileResult<()> {
+        self.compile_expr(condition)?;
+
+        let patch_index = self.add_placeholder()?;
+        self.compile_expr(then_block)?;
+
+        let offset = self.get_offset(patch_index)?;
+        self.patch_placeholder(patch_index, (offset + 1) as i8, JumpCondition::WhenFalse)?;
+
+        let patch_index = self.add_placeholder()?;
+        self.compile_expr(else_block)?;
+        let offset = self.get_offset(patch_index)?;
+        self.patch_placeholder(patch_index, offset as i8, JumpCondition::None)?;
+        
+        Ok(())
+    }
 }
 
 /**
@@ -448,6 +475,16 @@ impl Compiler {
             self.add_instr(Instruction::Constant { index })?;
         }
         Ok(index)
+    }
+
+    #[inline]
+    fn get_offset(&self, patch_index: usize) -> CompileResult<i8> {
+        let offset = self.instructions().len() - patch_index;
+        if offset > std::i8::MAX as usize {
+            Err(CompileError::TooLongToJump)
+        } else {
+            Ok(offset as i8)
+        }
     }
 }
 

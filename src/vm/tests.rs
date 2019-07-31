@@ -170,3 +170,52 @@ unit_test! {
     ",
     Ok(Value::Int(10))
 }
+
+unit_test! {
+    block,
+    "
+    return do
+        let x = 5 * 5;
+        x
+    end;
+    ",
+    Ok(Value::Int(25))
+}
+
+unit_test! {
+    block_return,
+    "
+    let x = do
+        return 5;
+    end;
+    ",
+    Ok(Value::Int(5))
+}
+
+unit_test! {
+    if_expr,
+    "
+    let x = if true then   
+        10
+    else
+        5
+    end;
+    return x;
+    ",
+    Ok(Value::Int(10))
+}
+
+unit_test! {
+    if_expr_comp,
+    "
+    let x = if false then
+        5
+    else if false then
+        10
+    else
+        15
+    end;
+    return x;
+    ",
+    Ok(Value::Int(15))
+}

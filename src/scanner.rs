@@ -332,32 +332,35 @@ mod tests {
         let source = "let __underscored_variable = 5";
         let mut scanner = Scanner::new(source);
         let scanned = scanner.scan().unwrap();
-        assert_eq!(scanned, &[
-            Token {
-                typ: TokenType::Let,
-                text: "let".to_string(),
-                line: 1,
-            },
-            Token {
-                typ: TokenType::Identifier,
-                text: "__underscored_variable".to_string(),
-                line: 1,
-            },
-            Token {
-                typ: TokenType::Equal,
-                text: '='.to_string(),
-                line: 1,
-            },
-            Token {
-                typ: TokenType::Number,
-                text: "5".to_string(),
-                line: 1,
-            },
-            Token {
-                typ: TokenType::Eof,
-                text: "".to_string(),
-                line: 1,
-            },
-        ]);
+        assert_eq!(
+            scanned,
+            &[
+                Token {
+                    typ: TokenType::Let,
+                    text: "let".to_string(),
+                    line: 1,
+                },
+                Token {
+                    typ: TokenType::Identifier,
+                    text: "__underscored_variable".to_string(),
+                    line: 1,
+                },
+                Token {
+                    typ: TokenType::Equal,
+                    text: '='.to_string(),
+                    line: 1,
+                },
+                Token {
+                    typ: TokenType::Number,
+                    text: "5".to_string(),
+                    line: 1,
+                },
+                Token {
+                    typ: TokenType::Eof,
+                    text: "".to_string(),
+                    line: 1,
+                },
+            ]
+        );
     }
 }
