@@ -137,7 +137,7 @@ where
 
     fn return_stmt(&mut self) -> Result<Statement> {
         let expr = self.expression().unwrap_or(Expr::Literal(Literal::Unit));
-        self.match_token(TokenType::Semicolon)?;
+        let _ = self.match_token(TokenType::Semicolon);
         Ok(Statement::Return(expr))
     }
 
@@ -422,6 +422,8 @@ where
                 Err(err) => {
                     match err {
                         ParserError::UnexpectedExpr(expr) => break expr,
+                        // This may omit some unexpected error
+                        // TODO: check if matched with terminating token if so push literal expr
                         _ => break Expr::Literal(Literal::Unit),
                     }
                 }
