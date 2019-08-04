@@ -171,13 +171,15 @@ where
 
     fn comparasion(&mut self) -> Result<Expr> {
         let mut left = self.addition()?;
-        while let Ok(token) = self
-            .match_token(TokenType::Less)
-            .or_else(|_| self.match_token(TokenType::Greater))
-            .or_else(|_| self.match_token(TokenType::LessEqual))
-            .or_else(|_| self.match_token(TokenType::GreaterEqual))
-            .or_else(|_| self.match_token(TokenType::EqualEqual))
-            .or_else(|_| self.match_token(TokenType::BangEqual))
+        while let Some(token) = [
+                TokenType::Less, 
+                TokenType::Greater, 
+                TokenType::LessEqual,
+                TokenType::GreaterEqual,
+                TokenType::EqualEqual,
+                TokenType::BangEqual
+            ].iter()
+            .find_map(|t| self.match_token(*t).ok())
         {
             let binop: BinaryOp = token.get_type().into();
             let right = self.addition()?;
@@ -703,18 +705,5 @@ mod tests {
                 return 5;
             end;
         ";
-    }
-
-    // #[test]
-    fn if_expr_works() {
-        let source = "
-            let x = if true then
-                \"foo\"
-            else
-                \"bar\"
-            end;
-        ";
-        let mut parser = Parser::new(source).unwrap();
-        let parsed = parser.parse().unwrap();
     }
 }
