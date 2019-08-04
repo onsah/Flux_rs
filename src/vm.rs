@@ -250,7 +250,7 @@ impl Vm {
         let value = Self::get_table(&key, &table)?;
         match table {
             Value::Table(rc) => {
-                self.stack.push(value.to_user_fn()?.with_this(rc).into());
+                self.stack.push(value.into_user_fn()?.with_this(rc).into());
                 Ok(())
             }
             _ => Err(RuntimeError::TypeError),

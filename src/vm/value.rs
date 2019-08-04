@@ -72,7 +72,7 @@ impl Value {
         }
     }
 
-    pub fn to_user_fn(self) -> RuntimeResult<UserFunction> {
+    pub fn into_user_fn(self) -> RuntimeResult<UserFunction> {
         match self {
             Value::Function(function) => match function {
                 Function::User(f) => Ok(f),

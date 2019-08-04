@@ -67,6 +67,7 @@ impl Compiler {
         match stmt {
             Statement::Expr(expr) => self.expr_stmt(expr),
             Statement::Let { name, value } => self.let_stmt(name, value),
+            Statement::Set { variable, value } => self.set_stmt(variable, value),
             Statement::Block(statements) => self.block_stmt(statements),
             Statement::If {
                 condition,
@@ -89,20 +90,38 @@ impl Compiler {
     }
 
     fn expr_stmt(&mut self, expr: Expr) -> CompileResult<()> {
-        let is_assignment = match &expr {
-            Expr::Set { .. } => true,
-            _ => false,
-        };
         self.compile_expr(expr)?;
-        if !is_assignment {
-            self.add_instr(Instruction::Pop)?;
-        }
+        self.add_instr(Instruction::Pop)?;
         Ok(())
     }
 
     fn let_stmt(&mut self, name: String, value: Expr) -> CompileResult<()> {
         self.push_local(name);
         self.compile_expr(value)?;
+        Ok(())
+    }
+
+    fn set_stmt(&mut self, variable: Expr, value: Expr) -> CompileResult<()> {
+        // TODO: pattern matching for tuple expressions
+        match variable {
+            Expr::Identifier(name) => {
+                let index = self.add_constant(name.clone().into(), true)?;
+                self.compile_expr(value)?;
+                if let Some((index, frame)) = self.resolve_local(name.as_str()) {
+                    let index = index as u16;
+                    self.add_instr(Instruction::SetLocal { index, frame })
+                } else {
+                    self.add_instr(Instruction::SetGlobal { index })
+                }
+            }
+            Expr::Access { table, field } => {
+                self.compile_expr(value)?;
+                self.compile_expr(*field)?;
+                self.compile_expr(*table)?;
+                self.add_instr(Instruction::SetField)
+            }
+            _ => Err(CompileError::InvalidAssignmentTarget(variable)),
+        }?;
         Ok(())
     }
 
@@ -166,7 +185,7 @@ impl Compiler {
             Expr::Tuple(exprs) => self.tuple(exprs),
             Expr::Access { table, field } => self.access(*table, *field),
             Expr::SelfAccess { table, field } => self.self_access(*table, field),
-            Expr::Set { variable, value } => self.set(*variable, *value),
+            // Expr::Set { variable, value } => self.set(*variable, *value),
             Expr::TableInit { keys, values } => self.table_init(keys, values),
             Expr::Function { args, body } => self.function_def(args, body),
             Expr::Call { func, args } => self.call(*func, args),
@@ -303,31 +322,6 @@ impl Compiler {
         self.compile_expr(table)?;
         let index = self.add_constant(field.into(), false)?;
         self.add_instr(Instruction::GetMethodImm { index })
-    }
-
-    fn set(&mut self, variable: Expr, value: Expr) -> CompileResult<()> {
-        // TODO: pattern matching for tuple expressions
-
-        match variable {
-            Expr::Identifier(name) => {
-                let index = self.add_constant(name.clone().into(), true)?;
-                self.compile_expr(value)?;
-                if let Some((index, frame)) = self.resolve_local(name.as_str()) {
-                    let index = index as u16;
-                    self.add_instr(Instruction::SetLocal { index, frame })
-                } else {
-                    self.add_instr(Instruction::SetGlobal { index })
-                }
-            }
-            Expr::Access { table, field } => {
-                self.compile_expr(value)?;
-                self.compile_expr(*field)?;
-                self.compile_expr(*table)?;
-                self.add_instr(Instruction::SetField)
-            }
-            _ => Err(CompileError::InvalidAssignmentTarget(variable)),
-        }?;
-        self.add_instr(Instruction::Unit)
     }
 
     fn table_init(&mut self, keys: Option<Vec<Expr>>, values: Vec<Expr>) -> CompileResult<()> {

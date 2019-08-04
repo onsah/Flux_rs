@@ -24,10 +24,6 @@ pub enum Expr {
         table: Box<Expr>,
         field: String,
     },
-    Set {
-        variable: Box<Expr>,
-        value: Box<Expr>,
-    },
     TableInit {
         keys: Option<Vec<Expr>>,
         values: Vec<Expr>,

@@ -58,9 +58,10 @@ where
         } else if self.match_token(TokenType::Fn).is_ok() {
             self.fn_stmt()
         } else {
-            // self.expr_stmt()
             let expr = self.expression()?;
-            if self.match_token(TokenType::Semicolon).is_ok() {
+            if self.match_token(TokenType::Equal).is_ok() {
+                self.assign_stmt(expr)
+            } else if self.match_token(TokenType::Semicolon).is_ok() {
                 Ok(Statement::Expr(expr))
             } else {
                 Err(ParserError::UnexpectedExpr(expr))
@@ -148,25 +149,21 @@ where
         Ok(Statement::Let { name, value })
     }
 
+    fn assign_stmt(&mut self, variable: Expr) -> Result<Statement> {
+        let value = self.expression()?;
+        self.match_token(TokenType::Semicolon)?;
+        Ok(Statement::Set {
+            variable,
+            value
+        })
+    }
+
     pub(self) fn expression(&mut self) -> Result<Expr> {
         self.binary()
     }
 
     fn binary(&mut self) -> Result<Expr> {
-        self.assignment()
-    }
-
-    fn assignment(&mut self) -> Result<Expr> {
-        let left = self.comparasion()?;
-        if self.match_token(TokenType::Equal).is_ok() {
-            let right = self.comparasion()?;
-            Ok(Expr::Set {
-                variable: Box::new(left),
-                value: Box::new(right),
-            })
-        } else {
-            Ok(left)
-        }
+        self.comparasion()
     }
 
     fn comparasion(&mut self) -> Result<Expr> {
@@ -279,7 +276,7 @@ where
                 }
                 TokenType::LeftParen => {
                     let mut args = Vec::new();
-                    if let Err(_) = self.match_token(TokenType::RightParen) {
+                    if self.match_token(TokenType::RightParen).is_err() {
                         args.push(self.expression()?);
                         while self.match_token(TokenType::Comma).is_ok() {
                             args.push(self.expression()?);
@@ -363,32 +360,31 @@ where
             let mut values = Vec::new();
             let mut keys: Option<Vec<Expr>> = {
                 let expr = self.expression()?;
-                match expr {
-                    Expr::Set { variable, value } => {
-                        values.push(*value);
-                        Some(vec![*variable])
-                    }
-                    other => {
-                        values.push(other);
-                        None
-                    }
+                if self.match_token(TokenType::Equal).is_ok() {
+                    let value = self.expression()?;
+                    values.push(value);
+                    Some(vec![expr])
+                } else {
+                    values.push(expr);
+                    None
                 }
             };
             while self.match_token(TokenType::Comma).is_ok() {
                 if let Some(keys) = keys.as_mut() {
                     let expr = self.expression()?;
-                    match expr {
-                        Expr::Set { variable, value } => {
-                            keys.push(*variable);
-                            values.push(*value);
-                        }
-                        _ => return Err(ParserError::InitError),
+                    if self.match_token(TokenType::Equal).is_ok() {
+                        let value = self.expression()?;
+                        keys.push(expr);
+                        values.push(value);
+                    } else {
+                        return Err(ParserError::InitError);
                     }
                 } else {
                     let expr = self.expression()?;
-                    match expr {
-                        Expr::Set { .. } => return Err(ParserError::InitError),
-                        _ => values.push(expr),
+                    if self.match_token(TokenType::Equal).is_ok() {
+                        return Err(ParserError::InitError);
+                    } else {
+                        values.push(expr);
                     }
                 }
             }
@@ -705,5 +701,14 @@ mod tests {
                 return 5;
             end;
         ";
+    }
+
+    #[test]
+    fn assignment_stmt() {
+        let source = "let x = foo = bar;";
+        let mut parser = Parser::new(source).unwrap();
+        let parsed = parser.parse();
+        assert!(parsed.is_err());
+        println!("{:?}", parsed);
     }
 }

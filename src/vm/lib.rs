@@ -144,7 +144,7 @@ define_native! {
             let mut table = table.borrow_mut();
             table.set(Value::Embedded("__class__"), klass.clone());
         }
-        if let Ok(init) = Vm::get_table(&Value::Embedded("init"), &klass)?.to_user_fn() {
+        if let Ok(init) = Vm::get_table(&Value::Embedded("init"), &klass)?.into_user_fn() {
             let pushed_args = args.len() as u8;
             for arg in args.into_iter().skip(1) {
                 vm.stack.push(arg)
