@@ -3,7 +3,8 @@ A toy scripting language for learning purposes
 Design goals are:
 * Minimal syntax
 * Null safety (normal type vs nullable type)
-* Functional programming features (passing functions, returning functions)
+* Functional programming features (higher order functions)
+* Simple OOP support
 
 ## What is working?
 * recursion
@@ -11,9 +12,9 @@ Design goals are:
 * tables
 * OOP
 * local scoping
+* block expressions
 
 ## What is **not** working?
-* block expressions
 * nil checking at compile time
 * pattern matching for multiple return values
 
