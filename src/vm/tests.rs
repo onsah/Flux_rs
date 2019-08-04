@@ -45,10 +45,10 @@ unit_test! {
     recursion,
     "
     let fib = fn(n) 
-        if n <= 1 then 
-            return n;
+        return if n <= 1 then 
+            n
         else 
-            return fib(n - 1) + fib(n - 2); 
+            fib(n - 1) + fib(n - 2)
         end
     end;
     return fib(6);

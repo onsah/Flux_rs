@@ -120,13 +120,13 @@ impl Compiler {
     fn if_stmt(
         &mut self,
         condition: Expr,
-        then_block: Statement,
-        else_block: Option<Statement>,
+        then_block: Expr,
+        else_block: Option<Expr>,
     ) -> CompileResult<()> {
         self.compile_expr(condition)?;
 
         let patch_index = self.add_placeholder()?;
-        self.compile_stmt(then_block)?;
+        self.compile_expr(then_block)?;
 
         let offset = self.get_offset(patch_index)?;
         if let Some(else_block) = else_block {
@@ -134,7 +134,7 @@ impl Compiler {
             self.patch_placeholder(patch_index, (offset + 1) as i8, JumpCondition::WhenFalse)?;
 
             let patch_index = self.add_placeholder()?;
-            self.compile_stmt(else_block)?;
+            self.compile_expr(else_block)?;
             let offset = self.get_offset(patch_index)?;
             self.patch_placeholder(patch_index, offset as i8, JumpCondition::None)?;
         } else {
@@ -407,7 +407,7 @@ impl Compiler {
         self.compile_expr(else_block)?;
         let offset = self.get_offset(patch_index)?;
         self.patch_placeholder(patch_index, offset as i8, JumpCondition::None)?;
-        
+
         Ok(())
     }
 }

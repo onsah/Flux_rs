@@ -83,19 +83,19 @@ where
     fn if_stmt(&mut self) -> Result<Statement> {
         let condition = self.expression()?;
         self.match_token(TokenType::Then)?;
-        let then_block = Statement::Block(self.block_stmt()?);
+        let then_block = self.block_expr_impl()?;
         if self.match_token(TokenType::Else).is_ok() {
             let else_block = if self.match_token(TokenType::If).is_ok() {
-                self.if_stmt()?
+                let if_stmt = self.if_stmt()?;
+                Some(Box::new(if_stmt.into_expr().unwrap()))
             } else {
-                let block = self.block_stmt()?;
-                self.match_token(TokenType::End)?;
-                Statement::Block(block)
+                Some(Box::new(self.block_expr(TokenType::End)?))
             };
+            // let else_block = self.block_expr(TokenType::End)?;
             Ok(Statement::If {
                 condition,
                 then_block: Box::new(then_block),
-                else_block: Some(Box::new(else_block)),
+                else_block,
             })
         } else {
             self.match_token(TokenType::End)?;
@@ -415,6 +415,12 @@ where
 
     fn block_expr(&mut self, terminating_token: TokenType) -> Result<Expr> {
         //...
+        let expr = self.block_expr_impl()?;
+        self.match_token(terminating_token)?;
+        Ok(expr)
+    }
+
+    fn block_expr_impl(&mut self) -> Result<Expr> {
         let mut stmts = Vec::new();
         let expr = loop {
             match self.statement() {
@@ -424,12 +430,19 @@ where
                         ParserError::UnexpectedExpr(expr) => break expr,
                         // This may omit some unexpected error
                         // TODO: check if matched with terminating token if so push literal expr
-                        _ => break Expr::Literal(Literal::Unit),
+                        _ => {
+                            // Check if last statement can be converted to expr
+                            let last_stmt = stmts.last();
+                            break if last_stmt.is_some() && last_stmt.unwrap().can_convert_expr() {
+                                stmts.pop().unwrap().into_expr().unwrap()
+                            } else {
+                                Expr::Literal(Literal::Unit)
+                            }
+                        },
                     }
                 }
             }
         };
-        self.match_token(terminating_token)?;
         Ok(Expr::Block {
             stmts,
             expr: Box::new(expr),
@@ -440,9 +453,12 @@ where
         let condition = self.expression()?;
         self.match_token(TokenType::Then)?;
         let then_block = self.block_expr(TokenType::Else)?;
-        // Since it is expression else should be always there
-        let else_block = self.block_expr(TokenType::End)?;
-        
+        let else_block = if self.match_token(TokenType::If).is_ok() {
+            self.if_expr()?
+        } else {
+            self.block_expr(TokenType::End)?
+        };
+
         Ok(Expr::If {
             condition: Box::new(condition),
             then_block: Box::new(then_block),

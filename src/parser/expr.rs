@@ -44,7 +44,6 @@ pub enum Expr {
         stmts: Vec<Statement>,
         expr: Box<Expr>,
     },
-    // Below are not added to compiler yet
     If {
         condition: Box<Expr>,
         then_block: Box<Expr>,
