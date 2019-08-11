@@ -7,7 +7,7 @@ pub use super::scanner::{Token, TokenType};
 use crate::error::FluxResult;
 use crate::scanner::Scanner;
 pub use error::ParserError;
-pub use expr::{BinaryOp, Expr, Literal, UnaryOp};
+pub use expr::{BinaryOp, Expr, BlockExpr, Literal, UnaryOp};
 use lookahead::LookAhead;
 pub use statement::Statement;
 use std::ops::{Deref, DerefMut};
@@ -90,19 +90,19 @@ where
                 let if_stmt = self.if_stmt()?;
                 Some(Box::new(if_stmt.into_expr().unwrap()))
             } else {
-                Some(Box::new(self.block_expr(TokenType::End)?))
+                Some(Box::new(self.block_expr(TokenType::End)?.into()))
             };
             // let else_block = self.block_expr(TokenType::End)?;
             Ok(Statement::If {
                 condition,
-                then_block: Box::new(then_block),
+                then_block: Box::new(then_block.into()),
                 else_block,
             })
         } else {
             self.match_token(TokenType::End)?;
             Ok(Statement::If {
                 condition,
-                then_block: Box::new(then_block),
+                then_block: Box::new(then_block.into()),
                 else_block: None,
             })
         }
@@ -318,7 +318,7 @@ where
         } else if self.match_token(TokenType::Fn).is_ok() {
             self.function()
         } else if self.match_token(TokenType::Do).is_ok() {
-            self.block_expr(TokenType::End)
+            self.block_expr(TokenType::End).map(BlockExpr::into)
         } else if self.match_token(TokenType::If).is_ok() {
             self.if_expr()
         } else {
@@ -406,19 +406,18 @@ where
         } else {
             self.match_token(TokenType::RightParen)?;
         }
-        let body = self.block_stmt()?;
-        self.match_token(TokenType::End)?;
+        let body = self.block_expr(TokenType::End)?;
         Ok(Expr::Function { args, body })
     }
 
-    fn block_expr(&mut self, terminating_token: TokenType) -> Result<Expr> {
+    fn block_expr(&mut self, terminating_token: TokenType) -> Result<BlockExpr> {
         //...
         let expr = self.block_expr_impl()?;
         self.match_token(terminating_token)?;
         Ok(expr)
     }
 
-    fn block_expr_impl(&mut self) -> Result<Expr> {
+    fn block_expr_impl(&mut self) -> Result<BlockExpr> {
         let mut stmts = Vec::new();
         let expr = loop {
             match self.statement() {
@@ -431,17 +430,18 @@ where
                         _ => {
                             // Check if last statement can be converted to expr
                             let last_stmt = stmts.last();
-                            break if last_stmt.is_some() && last_stmt.unwrap().can_convert_expr() {
-                                stmts.pop().unwrap().into_expr().unwrap()
-                            } else {
-                                Expr::Literal(Literal::Unit)
+                            break {
+                                match last_stmt.map(|s| s.can_convert_expr()) {
+                                    Some(true) => stmts.pop().unwrap().into_expr().unwrap(),
+                                    _ => Expr::Literal(Literal::Unit)
+                                }
                             }
                         },
                     }
                 }
             }
         };
-        Ok(Expr::Block {
+        Ok(BlockExpr {
             stmts,
             expr: Box::new(expr),
         })
@@ -454,12 +454,12 @@ where
         let else_block = if self.match_token(TokenType::If).is_ok() {
             self.if_expr()?
         } else {
-            self.block_expr(TokenType::End)?
+            self.block_expr(TokenType::End)?.into()
         };
 
         Ok(Expr::If {
             condition: Box::new(condition),
-            then_block: Box::new(then_block),
+            then_block: Box::new(then_block.into()),
             else_block: Box::new(else_block),
         })
     }
@@ -662,7 +662,10 @@ mod tests {
                 name: "foo".to_string(),
                 value: Expr::Function {
                     args: vec![],
-                    body: vec![]
+                    body: BlockExpr {
+                        stmts: vec![],
+                        expr: Box::new(Expr::Literal(Literal::Unit))
+                    }
                 }
             }
         )
@@ -682,25 +685,33 @@ mod tests {
             parsed,
             vec![Statement::Let {
                 name: "foo".to_string(),
-                value: Expr::Block {
+                value: Expr::Block(BlockExpr {
                     stmts: vec![Statement::Let {
                         name: "bar".to_string(),
                         value: Expr::Identifier("foo".to_string()),
                     }],
                     expr: Box::new(Expr::Literal(Literal::Number(5.0)))
-                }
+                })
             }]
         );
         let source = "
-            let square = fn(x)
-                x * x
-            end;
+        do
+            x * x
+        end
         ";
-        let source = "
-            let bar = fn()
-                return 5;
-            end;
-        ";
+        let mut parser = Parser::new(source).unwrap();
+        let parsed = parser.expression().unwrap();
+        assert_eq!(
+            parsed, 
+            Expr::Block(BlockExpr {
+                stmts: vec![],
+                expr: Box::new(Expr::Binary {
+                    left: Box::new(Expr::Identifier("x".to_string())),
+                    op: BinaryOp::Star,
+                    right: Box::new(Expr::Identifier("x".to_string()))
+                })
+            })
+        );
     }
 
     #[test]
@@ -709,6 +720,10 @@ mod tests {
         let mut parser = Parser::new(source).unwrap();
         let parsed = parser.parse();
         assert!(parsed.is_err());
-        println!("{:?}", parsed);
+
+        let source = "let foo = fn() end; foo(x = 5)";
+        let mut parser = Parser::new(source).unwrap();
+        let parsed = parser.parse();
+        assert!(parsed.is_err());
     }
 }

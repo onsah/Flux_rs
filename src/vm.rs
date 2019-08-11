@@ -200,6 +200,7 @@ impl Vm {
                         }
                     }
                 }
+                Instruction::Integer(value) => self.stack.push(value.into()),
                 _ => return Err(RuntimeError::UnsupportedInstruction(instr)),
             }
             let f = self.current_frame_mut()?;

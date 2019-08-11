@@ -93,6 +93,7 @@ pub enum Instruction {
     CloseUpval {
         index: u8,
     },
+    Integer(i32),
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]

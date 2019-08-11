@@ -30,16 +30,13 @@ pub enum Expr {
     },
     Function {
         args: Vec<String>,
-        body: Vec<Statement>,
+        body: BlockExpr,
     },
     Call {
         func: Box<Expr>,
         args: Vec<Expr>,
     },
-    Block {
-        stmts: Vec<Statement>,
-        expr: Box<Expr>,
-    },
+    Block(BlockExpr),
     If {
         condition: Box<Expr>,
         then_block: Box<Expr>,
@@ -49,9 +46,15 @@ pub enum Expr {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-struct BlockExpr {
-    stmts: Vec<Statement>,
-    expr: Box<Expr>,
+pub struct BlockExpr {
+    pub stmts: Vec<Statement>,
+    pub expr: Box<Expr>,
+}
+
+impl Into<Expr> for BlockExpr {
+    fn into(self) -> Expr {
+        Expr::Block(self)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

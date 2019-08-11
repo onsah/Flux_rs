@@ -27,13 +27,13 @@ Design goals are:
 ### Argument binding via closures
 ```
 let bind = fn(f, arg) 
-    return fn()
-        return f(arg)
+    fn()
+        f(arg)
     end
 end;
 
 let square = fn(x)
-    return x * x
+    x * x
 end;
 
 let square5 = bind(square, 5);

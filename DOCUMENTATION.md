@@ -95,15 +95,15 @@ let mul = 5 * 3 + 2; // 17
 let complex_binary = 6 + 2 * 7 / 2; // 13
 ```
 
-### Assignment
+### Grouping
 
-Assignment expressions assign an expression to a value. Return value of assignment is always a `Unit`. This expression will be a statement in the future.
+Grouping expression is an expression that is wrapped between parantheses.
 
 ```
-let g = 5;
-g = "hello";
-println(g); // hello
-println(g = "world"); // ()
+let n = (5 + 3) * 2;
+println(n) // 16
 ```
+
+
 
 ### TODO

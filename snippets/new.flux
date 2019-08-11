@@ -1,10 +1,15 @@
-let class = {
-    "init" = fn(self)
-        self.bar = "this set during init"
-    end,
-    "foo" = fn(self)
-        println(self.bar)
-    end
-}
-let obj = new(class)
-obj:foo()
+let setX = fn(self, x) 
+    self.x = x;
+end;
+
+let setX = fn(x, self) 
+    self.x = x;
+end;
+
+let setX = fn(x)
+    self.x = x;
+end;
+
+let setX = self fn(x)
+    self.x = x;
+end;

@@ -223,6 +223,12 @@ impl From<Integer> for Value {
     }
 }
 
+impl From<i32> for Value {
+    fn from(int: i32) -> Self {
+        Value::Int(int as Integer)
+    }
+}
+
 impl From<Float> for Value {
     fn from(float: Float) -> Self {
         Value::Number(float)

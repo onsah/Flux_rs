@@ -219,3 +219,12 @@ unit_test! {
     ",
     Ok(Value::Int(15))
 }
+
+unit_test! {
+    func_expr_works,
+    "
+    let sqrt = fn(n) n * n end;
+    return sqrt(5)
+    ",
+    Ok(Value::Int(25))
+}

@@ -2,8 +2,9 @@ mod chunk;
 mod error;
 mod instruction;
 
-use crate::parser::{BinaryOp, Expr, Literal, Statement, UnaryOp};
-use crate::vm::{Integer, Value};
+use std::convert::TryInto;
+use crate::parser::{BinaryOp, Expr, BlockExpr, Literal, Statement, UnaryOp};
+use crate::vm::{Value, Integer};
 pub use chunk::{Chunk, FuncProto, JumpCondition};
 pub use error::CompileError;
 pub use instruction::{BinaryInstr, Instruction, UnaryInstr};
@@ -189,7 +190,7 @@ impl Compiler {
             Expr::TableInit { keys, values } => self.table_init(keys, values),
             Expr::Function { args, body } => self.function_def(args, body),
             Expr::Call { func, args } => self.call(*func, args),
-            Expr::Block { stmts, expr } => self.block_expr(stmts, *expr),
+            Expr::Block(BlockExpr { stmts, expr }) => self.block_expr(stmts, *expr),
             Expr::If {
                 condition,
                 then_block,
@@ -208,15 +209,22 @@ impl Compiler {
                 Instruction::False
             }),
             Literal::Number(n) => match n.fract() == 0.0 {
-                true => self.add_constant(Value::Int(n.trunc() as Integer), true),
-                false => self.add_constant(Value::Number(n), true),
+                true => self.int_literal(n as i64),
+                false => self.add_constant(Value::Number(n), true).map(|_| ()),
             }
-            .map(|_| ()),
             Literal::Str(string) => {
                 self.add_constant(string.into(), true)?;
                 Ok(())
             }
             Literal::Unit => self.add_instr(Instruction::Unit),
+        }
+    }
+
+    fn int_literal(&mut self, value: Integer) -> CompileResult<()> {
+        if let Ok(value) = value.try_into() {
+            self.add_instr(Instruction::Integer(value))
+        } else {
+            self.add_constant(Value::Int(value), true).map(|_| ())
         }
     }
 
@@ -345,7 +353,7 @@ impl Compiler {
         self.add_instr(Instruction::InitTable { len, has_keys })
     }
 
-    fn function_def(&mut self, args: Vec<String>, body: Vec<Statement>) -> CompileResult<()> {
+    fn function_def(&mut self, args: Vec<String>, body: BlockExpr) -> CompileResult<()> {
         // let patch_index = self.chunk.push_placeholder()?; // To prevent accidentally entering a function
         let args_len = args.len() as u8;
         // let code_start = self.chunk.instructions().len() - 1;
@@ -353,9 +361,13 @@ impl Compiler {
         for arg in args {
             self.push_local(arg);
         }
-        for stmt in body {
+        for stmt in body.stmts {
             self.compile_stmt(stmt)?;
         }
+        self.compile_expr(*body.expr)?;
+        self.add_instr(Instruction::Return {
+            return_value: true,
+        })?;
         let closure_scope = self.exit_function()?;
         // Patch after inserting pop instructions
         // let offset = self.chunk.instructions().len() - patch_index;
@@ -543,10 +555,7 @@ impl Compiler {
         let pop_count = self.scope_decr();
         for _ in 0..pop_count {
             self.add_instr(Instruction::Pop)?;
-        }
-        self.add_instr(Instruction::Return {
-            return_value: false,
-        })?;
+        } 
         Ok(self.closure_scopes.pop().unwrap())
     }
 }
