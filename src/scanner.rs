@@ -108,7 +108,7 @@ impl<'a> Scanner<'a> {
 
                 '\"' => return self.string(start + 1),
 
-                ' ' | '\t' => {}
+                ' ' | '\t' | '\r' => {}
                 '\n' => self.line += 1,
                 c => {
                     if c.is_alphabetic() || c == '_' {

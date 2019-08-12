@@ -88,7 +88,14 @@ where
         if self.match_token(TokenType::Else).is_ok() {
             let else_block = if self.match_token(TokenType::If).is_ok() {
                 let if_stmt = self.if_stmt()?;
-                Some(Box::new(if_stmt.into_expr().unwrap()))
+                if if_stmt.can_convert_expr() {
+                    Some(Box::new(if_stmt.into_expr().unwrap()))
+                } else {
+                    Some(Box::new(Expr::Block(BlockExpr {
+                        stmts: vec![if_stmt],
+                        expr: Box::new(Expr::unit())
+                    })))
+                }
             } else {
                 Some(Box::new(self.block_expr(TokenType::End)?.into()))
             };
@@ -725,5 +732,18 @@ mod tests {
         let mut parser = Parser::new(source).unwrap();
         let parsed = parser.parse();
         assert!(parsed.is_err());
+    }
+
+    #[test]
+    fn if_without_else() {
+        let source = "
+        if false then
+            print(\"not here\");
+        else if true then
+            print(\"here\");
+        end";
+        let mut parser = Parser::new(source).unwrap();
+        let parsed = parser.parse();
+        assert!(parsed.is_ok());
     }
 }

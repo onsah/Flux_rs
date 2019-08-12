@@ -45,6 +45,14 @@ pub enum Expr {
     },
 }
 
+impl Expr {
+    pub fn unit() -> Self {
+        Expr::Literal(Literal::Unit)
+    }
+
+    
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct BlockExpr {
     pub stmts: Vec<Statement>,

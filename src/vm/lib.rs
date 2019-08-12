@@ -64,7 +64,7 @@ define_native! {
         let mut string = String::new();
         match io::stdin().read_line(&mut string) {
             Ok(_) => {
-                string.pop().unwrap();
+                string.pop().unwrap();  // Remove newline
                 Ok(Value::Str(Rc::new(string)))
             },
             Err(_) => Err(RuntimeError::IOError),
@@ -84,7 +84,8 @@ define_native! {
             })),
             Value::Nil => Ok(Value::Int(0)),
             Value::Str(string) => {
-                match string.parse::<Integer>() {
+                let trimmed = string.trim();
+                match trimmed.parse::<Integer>() {
                     Ok(i) => Ok(Value::Int(i)),
                     Err(_) => Err(RuntimeError::InvalidFormat),
                 }
@@ -108,7 +109,8 @@ define_native! {
             })),
             Value::Nil => Ok(Value::Int(0)),
             Value::Str(string) => {
-                match string.parse::<f64>() {
+                let trimmed = string.trim();
+                match trimmed.parse::<f64>() {
                     Ok(i) => Ok(Value::Number(i)),
                     Err(_) => Err(RuntimeError::InvalidFormat),
                 }
