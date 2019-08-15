@@ -54,6 +54,7 @@ pub enum TokenType {
     Do,
     End,
     Print,
+    Import,
 
     Eof,
     Invalid,
@@ -83,6 +84,7 @@ lazy_static! {
         "then" => TokenType::Then,
         "do" => TokenType::Do,
         "end" => TokenType::End,
+        "import" => TokenType::Import,
         // "print" => TokenType::Print,
     };
 }

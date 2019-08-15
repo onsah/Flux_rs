@@ -33,7 +33,8 @@ fn main() -> Result<(), error::FluxError> {
         debug!("{:#?}", &chunk);
         print_instructions(&chunk);
         let mut vm = Vm::new();
-        vm.run(chunk)?;
+        let value = vm.run(chunk)?;
+        println!("Exited program. Evaluated: {}", value);
         Ok(())
     }
 }

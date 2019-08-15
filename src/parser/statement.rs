@@ -24,6 +24,7 @@ pub enum Statement {
     },
     Print(Expr),
     Return(Expr),
+    Import(Vec<String>),
 }
 
 impl Statement {

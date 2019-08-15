@@ -1,7 +1,7 @@
 # Syntax
 This section is a tutorial on syntax of flux language. Since it is in early development the documentation may become invalid.
 
-Some rules:
+Some syntax rules:
 ```
 *: optional
 [something]: syntax structure 
@@ -20,7 +20,7 @@ else
     print("x is bigger then 5");
 end
 ```
-If statement starts with a condition expression seperated from body by `then` keyword. Normally an if statement ends with `end` keyword but if there is else `end` is omitted. Moreover following is invalid syntax but can be valid in the future.
+If statement starts with a condition expression seperated from body with `then` keyword. Normally an if statement ends with `end` keyword but if there is else `end` is omitted. Moreover following is invalid syntax but can be valid in the future.
 ```
 if x < 5 then
     print("x is smaller then 5");
@@ -53,11 +53,6 @@ do
 end
 println(foo) // bar
 ```
-
-### Block
-`do {statement} end`
-
-Block statements create a new lexical scope
 
 ### Expression statement
 `[expression];`
@@ -104,6 +99,53 @@ let n = (5 + 3) * 2;
 println(n) // 16
 ```
 
+### If
 
+If expressions are similar to if statements in other languages and can be used as them, but they also return value so they can used anywhere an expression is valid. If statements without else branch can't be used as expressions since they can't guarantee to return value
+```
+let foo = 
+    if false then
+        5
+    else
+        6
+    end;
+    println(foo) // 6
+```
+
+### Block
+`do {statement} *[expression] end`
+
+Block expressions create a new lexical scope. If there is no expression at the end `Unit` is returned
+
+Note: In the future block may return `nil` when there is no expression. 
+```
+let i = 5;
+do
+    // Shadows the other i variable
+    let i = 10;
+    println(i) // 10
+end
+// Previous i is now visible again
+println(i) // 5
+```
+Since they are expressions this is also valid. This allows hiding temporary local variables using lexical scoping.
+```
+let i = do
+    let j = foo();
+    // Complex stuff...
+    j
+end;
+// j can not be reached from this scope
+```
+It produces cleaner code because block indicates that all code inside it is for initializing the variable.
+
+### Function
+A function expression returns a function :) Function definition a function with args followed by block expression. There is no conceptual difference between a function and a closure. Last expression of the block automatically returned from function.
+```
+let sqrt = fn(x) 
+    x * x 
+end;
+sqrt(5) // 25
+```
 
 ### TODO

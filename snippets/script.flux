@@ -1,4 +1,8 @@
-let sqrt = fn(n) 
-    n * n
-end;
-assert(25 == sqrt(5));
+let Class = {
+    "init" = fn(x, self)
+        self.x = x;
+    end,
+    "getX" = fn(self) self.x end,
+};
+let o = new(5, Class);
+o:getX() // 5

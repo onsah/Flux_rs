@@ -37,6 +37,8 @@ impl<'a> Scanner<'a> {
                 Err(e) => match e {
                     LexError::Eof => {
                         self.tokens.push(self.new_token(TokenType::Eof, 0, 0));
+                        // We need this for match_token
+                        self.tokens.push(self.new_token(TokenType::Eof, 0, 0));
                         return Ok(&self.tokens);
                     }
                     _ => return Err(e),
@@ -353,6 +355,11 @@ mod tests {
                 Token {
                     typ: TokenType::Number,
                     text: "5".to_string(),
+                    line: 1,
+                },
+                Token {
+                    typ: TokenType::Eof,
+                    text: "".to_string(),
                     line: 1,
                 },
                 Token {

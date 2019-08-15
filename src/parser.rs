@@ -34,12 +34,15 @@ impl<I> Parser<I>
 where
     I: Iterator<Item = Token>,
 {
-    pub fn parse(&mut self) -> Result<Vec<Statement>> {
-        let mut statements = Vec::new();
+    pub fn parse(&mut self) -> Result<Expr> {
+        let block = self.block_expr(TokenType::Eof)?.into();
+        // self.match_token(TokenType::Eof)?;
+        Ok(block)
+        /* let mut statements = Vec::new();
         while self.current()?.get_type() != TokenType::Eof {
             statements.push(self.statement()?);
         }
-        Ok(statements)
+        Ok(statements) */
     }
 
     pub fn statement(&mut self) -> Result<Statement> {
@@ -57,6 +60,8 @@ where
             self.return_stmt()
         } else if self.match_token(TokenType::Fn).is_ok() {
             self.fn_stmt()
+        } else if self.match_token(TokenType::Import).is_ok() {
+            self.import_stmt()
         } else {
             let expr = self.expression()?;
             if self.match_token(TokenType::Equal).is_ok() {
@@ -84,6 +89,7 @@ where
     fn if_stmt(&mut self) -> Result<Statement> {
         let condition = self.expression()?;
         self.match_token(TokenType::Then)?;
+    
         let then_block = self.block_expr_impl()?;
         if self.match_token(TokenType::Else).is_ok() {
             let else_block = if self.match_token(TokenType::If).is_ok() {
@@ -150,10 +156,18 @@ where
     }
 
     fn fn_stmt(&mut self) -> Result<Statement> {
-        let token = self.match_token(TokenType::Identifier)?;
-        let name = token.extract_text();
-        let value = self.function()?;
-        Ok(Statement::Let { name, value })
+        if let Ok(token) = self.match_token(TokenType::Identifier) {
+            let name = token.extract_text();
+            let value = self.function()?;
+            Ok(Statement::Let { name, value })
+        } else {
+            let func = self.function()?;
+            Ok(Statement::Expr(func))
+        }
+    }
+
+    fn import_stmt(&mut self) -> Result<Statement> {
+        unimplemented!()
     }
 
     fn assign_stmt(&mut self, variable: Expr) -> Result<Statement> {
@@ -377,6 +391,9 @@ where
                 }
             };
             while self.match_token(TokenType::Comma).is_ok() {
+                if self.current()?.get_type() == TokenType::RightCurly {
+                    break;
+                }
                 if let Some(keys) = keys.as_mut() {
                     let expr = self.expression()?;
                     if self.match_token(TokenType::Equal).is_ok() {
@@ -424,6 +441,12 @@ where
         Ok(expr)
     }
 
+    const BLOCK_ENDING: [TokenType; 3] = [
+        TokenType::End,
+        TokenType::Else,
+        TokenType::Eof,
+    ];
+
     fn block_expr_impl(&mut self) -> Result<BlockExpr> {
         let mut stmts = Vec::new();
         let expr = loop {
@@ -432,18 +455,23 @@ where
                 Err(err) => {
                     match err {
                         ParserError::UnexpectedExpr(expr) => break expr,
-                        // This may omit some unexpected error
                         // TODO: check if matched with terminating token if so push literal expr
-                        _ => {
-                            // Check if last statement can be converted to expr
-                            let last_stmt = stmts.last();
-                            break {
-                                match last_stmt.map(|s| s.can_convert_expr()) {
-                                    Some(true) => stmts.pop().unwrap().into_expr().unwrap(),
-                                    _ => Expr::Literal(Literal::Unit)
+                        err => {
+                            let typ = self.current()?.get_type();
+                            // We check if it ends with block terminating token so we don't omit any real error
+                            if Self::BLOCK_ENDING.iter().any(|&t| t == typ) {
+                                // Check if last statement can be converted to expr
+                                let last_stmt = stmts.last();
+                                break {
+                                    match last_stmt.map(|s| s.can_convert_expr()) {
+                                        Some(true) => stmts.pop().unwrap().into_expr().unwrap(),
+                                        _ => Expr::Literal(Literal::Unit)
+                                    }
                                 }
+                            } else {
+                                return Err(err)
                             }
-                        },
+                        }
                     }
                 }
             }
@@ -690,16 +718,20 @@ mod tests {
         let parsed = parser.parse().unwrap();
         assert_eq!(
             parsed,
-            vec![Statement::Let {
-                name: "foo".to_string(),
-                value: Expr::Block(BlockExpr {
-                    stmts: vec![Statement::Let {
-                        name: "bar".to_string(),
-                        value: Expr::Identifier("foo".to_string()),
-                    }],
-                    expr: Box::new(Expr::Literal(Literal::Number(5.0)))
-                })
-            }]
+            Expr::Block(BlockExpr {
+                stmts: vec![Statement::Let {
+                    name: "foo".to_string(),
+                    value: Expr::Block(BlockExpr {
+                        stmts: vec![Statement::Let {
+                            name: "bar".to_string(),
+                            value: Expr::Identifier("foo".to_string()),
+                        }],
+                        expr: Box::new(Expr::Literal(Literal::Number(5.0)))
+                    })
+                }],
+                expr: Box::new(Expr::unit())
+            })
+            
         );
         let source = "
         do
@@ -726,6 +758,7 @@ mod tests {
         let source = "let x = foo = bar;";
         let mut parser = Parser::new(source).unwrap();
         let parsed = parser.parse();
+        println!("{:?}", parsed);
         assert!(parsed.is_err());
 
         let source = "let foo = fn() end; foo(x = 5)";

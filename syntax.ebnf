@@ -1,7 +1,9 @@
 stat = setStat | letStat | expr ';' |
     'if' expr 'then' block ['else' expr] 'end' | 
     'while' expr 'then' block 'end' |
-    'do' block 'end';
+    'do' block 'end' | 'import' module ';';
+
+module = identifier [{'.' identifier}]
 
 setStat = get '=' expr;
 

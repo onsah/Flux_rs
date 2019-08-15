@@ -44,14 +44,18 @@ pub struct UpValueDesc {
  * Compiling
  */
 impl Compiler {
-    pub fn compile(stmts: Vec<Statement>) -> CompileResult<Chunk> {
+    pub fn compile(block: Expr) -> CompileResult<Chunk> {
         let mut compiler = Self::new();
-        for stmt in stmts {
+        compiler.compile_expr(block)?;
+        compiler.chunk.push_instr(Instruction::Return {
+            return_value: true,
+        })?; 
+        /* for stmt in stmts {
             compiler.compile_stmt(stmt)?;
         }
         compiler.chunk.push_instr(Instruction::Return {
             return_value: false,
-        })?;
+        })?; */
         Ok(compiler.chunk)
     }
 
@@ -87,6 +91,7 @@ impl Compiler {
                 self.compile_expr(expr)?;
                 self.add_instr(Instruction::Return { return_value: true })
             }
+            Statement::Import(_) => unimplemented!(),
         }
     }
 

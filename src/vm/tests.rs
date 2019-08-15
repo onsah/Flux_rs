@@ -149,7 +149,7 @@ unit_test! {
             assert(foo == 3);
         end
     end
-    assert(foo == 1);
+    assert(foo == 1)
     ",
     Ok(Value::Unit)
 }
@@ -225,6 +225,19 @@ unit_test! {
     "
     let sqrt = fn(n) n * n end;
     return sqrt(5)
+    ",
+    Ok(Value::Int(25))
+}
+
+unit_test! {
+    fn_stmt_to_fn_expr,
+    "
+    let lazySqrt = fn(x)
+        fn()
+            x * x
+        end
+    end;
+    return lazySqrt(5)()
     ",
     Ok(Value::Int(25))
 }
