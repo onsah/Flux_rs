@@ -20,7 +20,7 @@ else
     print("x is bigger then 5");
 end
 ```
-If statement starts with a condition expression seperated from body with `then` keyword. Normally an if statement ends with `end` keyword but if there is else `end` is omitted. Moreover following is invalid syntax but can be valid in the future.
+If statement starts with a condition expression seperated from body with `then` keyword. Normally an if statement ends with `end` keyword but if there is else `end` is omitted. Currently following is invalid syntax but can be valid in the future.
 ```
 if x < 5 then
     print("x is smaller then 5");
@@ -52,6 +52,28 @@ do
     println(foo); // hello
 end
 println(foo) // bar
+```
+
+### Import and Export statements
+`export { *( [identifier] {, [identifier] *,} ) }`
+`import [identifier] *{.[identifier]};`
+
+Export statements indicate which parts of the block will be exposed to the outside. A module can export only global variables. A module can have either one or zero export statement. Import statement imports the all variables from module to name of that module. Import statements create a global variable.
+
+File module.flux
+```
+export {
+    bar
+}
+
+bar = fn() "bar" end;
+```
+
+other file 
+```
+import module;
+
+module.bar() // "bar"
 ```
 
 ### Expression statement

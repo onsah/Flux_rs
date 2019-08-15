@@ -9,6 +9,7 @@ pub struct Chunk {
     instructions: Vec<Instruction>,
     constants: Vec<Value>,
     prototypes: Vec<FuncProto>,
+    // exports: Option<HashMap<Value, Value>>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
