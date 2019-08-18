@@ -150,7 +150,10 @@ impl Vm {
                 Instruction::InitTable { len, has_keys } => self.init_table(len, has_keys)?,
                 Instruction::GetField => self.get_field()?,
                 Instruction::GetFieldImm { index } => self.get_field_imm(index)?,
-                Instruction::GetMethodImm { index } => self.get_method_imm(index)?,
+                Instruction::GetMethodImm { 
+                    index, 
+                    table_stack_index 
+                } => self.get_method_imm(index, table_stack_index)?,
                 Instruction::SetField => self.set_field()?,
                 Instruction::SetFieldImm { index } => self.set_field_imm(index)?,
                 Instruction::Print => {
@@ -244,18 +247,21 @@ impl Vm {
         Ok(())
     }
 
-    fn get_method_imm(&mut self, index: u8) -> RuntimeResult<()> {
+    fn get_method_imm(&mut self, index: u8, table_stack_index: u8) -> RuntimeResult<()> {
         // let field = self.get_field_imm(index)?;
-        let table = self.pop_stack()?;
+        let table_stack_index = self.stack.len() - table_stack_index as usize - 1;
+        let table = self.stack[table_stack_index].clone();
         let key = &self.current_chunk().constants()[index as usize];
         let value = Self::get_table(&key, &table)?;
-        match table {
+        self.stack.push(value.into_user_fn()?.into());
+        Ok(())
+        /* match table {
             Value::Table(rc) => {
-                self.stack.push(value.into_user_fn()?.with_this(rc).into());
+                self.stack.push(value.into_user_fn()?.into());
                 Ok(())
             }
             _ => Err(RuntimeError::TypeError),
-        }
+        } */
     }
 
     fn set_field(&mut self) -> RuntimeResult<()> {

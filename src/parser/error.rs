@@ -13,4 +13,5 @@ pub enum ParserError {
     ExprOrReturn,
     UnexpectedStmt(Statement),
     UnexpectedExpr(Expr),
+    ExpectedMethod,
 }

@@ -77,13 +77,13 @@ unit_test! {
     method,
     "
     let obj = {
-        \"setX\" = fn(x, self)
+        \"setX\" = fn(self, x)
             self.x = x;
         end,
         \"getX\" = fn(self)
             return self.x;
         end,
-        \"setXLater\" = fn(x, self) 
+        \"setXLater\" = fn(self, x) 
             return fn()
                 self.x = x;
             end;
@@ -127,11 +127,11 @@ unit_test! {
     new_with_args,
     "
     let class = {
-        \"init\" = fn(x, self)
+        \"init\" = fn(self, x)
             self.foo = x;
         end
     };
-    let obj = new(3, class);
+    let obj = new(class, 3);
     return obj.foo;
     ",
     Ok(Value::Int(3))

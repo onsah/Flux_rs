@@ -190,7 +190,7 @@ impl Compiler {
             Expr::Grouping(expr) => self.compile_expr(*expr),
             Expr::Tuple(exprs) => self.tuple(exprs),
             Expr::Access { table, field } => self.access(*table, *field),
-            Expr::SelfAccess { table, field } => self.self_access(*table, field),
+            Expr::SelfAccess { table, method, args } => self.self_access(*table, method, args),
             // Expr::Set { variable, value } => self.set(*variable, *value),
             Expr::TableInit { keys, values } => self.table_init(keys, values),
             Expr::Function { args, body } => self.function_def(args, body),
@@ -331,10 +331,15 @@ impl Compiler {
         self.add_instr(access_instr)
     }
 
-    fn self_access(&mut self, table: Expr, field: String) -> CompileResult<()> {
+    fn self_access(&mut self, table: Expr, method: String, args: Vec<Expr>) -> CompileResult<()> {
+        let index = self.add_constant(method.into(), false)?;
+        let table_stack_index: u8 = args.len().try_into().unwrap();
+        let args_len = (args.len() + 1).try_into().unwrap();
+
         self.compile_expr(table)?;
-        let index = self.add_constant(field.into(), false)?;
-        self.add_instr(Instruction::GetMethodImm { index })
+        self.compile_args(args)?;
+        self.add_instr(Instruction::GetMethodImm { index, table_stack_index })?;
+        self.add_instr(Instruction::Call { args_len })
     }
 
     fn table_init(&mut self, keys: Option<Vec<Expr>>, values: Vec<Expr>) -> CompileResult<()> {
@@ -386,9 +391,7 @@ impl Compiler {
 
     fn call(&mut self, func: Expr, args: Vec<Expr>) -> CompileResult<()> {
         let args_len = args.len() as u8;
-        for arg in args {
-            self.compile_expr(arg)?;
-        }
+        self.compile_args(args)?;
         self.compile_expr(func)?;
         self.add_instr(Instruction::Call { args_len })
     }
@@ -419,6 +422,13 @@ impl Compiler {
         let offset = self.get_offset(patch_index)?;
         self.patch_placeholder(patch_index, offset as i8, JumpCondition::None)?;
 
+        Ok(())
+    }
+
+    fn compile_args(&mut self, args: Vec<Expr>) -> CompileResult<()> {
+        for arg in args {
+            self.compile_expr(arg)?;
+        }
         Ok(())
     }
 }

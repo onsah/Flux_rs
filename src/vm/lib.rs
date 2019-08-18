@@ -139,20 +139,17 @@ define_native! {
 define_native! {
     NEW,
     |vm, args| {
-        // TODO: too much cloning. Should be able with less
         let table = Table::new().shared();
-        let klass = &args[0];
+        let klass = args.last().unwrap();
         {
             let mut table = table.borrow_mut();
             table.set(Value::Embedded("__class__"), klass.clone());
         }
         if let Ok(init) = Vm::get_table(&Value::Embedded("init"), &klass)?.into_user_fn() {
             let pushed_args = args.len() as u8;
-            for arg in args.into_iter().skip(1) {
+            for arg in args.into_iter().rev() {
                 vm.stack.push(arg)
             }
-            // Maybe don't pop this somehow?
-            vm.stack.push(Rc::clone(&table).into());
             vm.call_user_blocking(init, pushed_args)?;
             vm.pop_stack()?;
         }

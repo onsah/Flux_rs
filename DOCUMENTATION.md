@@ -170,4 +170,72 @@ end;
 sqrt(5) // 25
 ```
 
+## Builtin functions and modules
+These functions and modules provide some common functionality that most programmers need. Although Flux itself doesn't accept variable number of arguments, native functions can take variable number of arguments.
+
+### `print` and `println`
+```
+native fn print(...): ()
+    //...
+end
+```
+
+`print` takes any number of argument and prints them with spaces inserted between them. `println` does the same with `print` but appends new line at the end.
+```
+print(5); // '5'
+print("foo", 3); // 'foo 3'
+```
+
+### `readline`
+```
+native fn read(): string
+    //...
+end
+```
+
+`readline` reads a single line and returns it as a string
+
+### `int`
+```
+native fn int(str): number
+    //...
+end
+```
+
+`int` takes a string and tries to parse int from it. Panics if string can't be converted to an integer.
+
+### `number`
+```
+native fn number(str): number
+    //...
+end
+```
+
+Same with `int` but parses a floating point number instead of integer.
+
+### `assert`
+```
+native fn assert(condition): ()
+    //...
+end
+```
+
+`assert` evaluates the condition and panics if condition returns false. Otherwise it does nothing.
+
+### `new`
+```
+native fn new(class, ...): table
+    //...
+end
+```
+
+`new` creates a new table with the provided class and arguments. The semantics of `new` is equivalent to the flux code below if flux has supported variable arguments
+```
+fn new(class, ...args)
+    let t = {};
+    t["__class__"] = class;
+    t:init(args...);
+    t
+end
+```
 ### TODO

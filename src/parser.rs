@@ -276,15 +276,19 @@ where
                     let name = token.text().to_string();
                     expr = Expr::Access {
                         table: Box::new(expr),
-                        field: Box::new(Expr::Literal(Literal::Str(name))),
+                        field: Box::new(Expr::string(name)),
                     };
                 }
                 TokenType::Colon => {
                     let token = self.match_token(TokenType::Identifier)?;
-                    let name = token.text().to_string();
+                    let method = token.text().to_string();
+                    // TODO convert error to expected method
+                    self.match_token(TokenType::LeftParen)?;
+                    let args = self.call_args()?;
                     expr = Expr::SelfAccess {
                         table: Box::new(expr),
-                        field: name,
+                        method,
+                        args
                     }
                 }
                 TokenType::LeftBracket => {
@@ -296,14 +300,7 @@ where
                     self.match_token(TokenType::RightBracket)?;
                 }
                 TokenType::LeftParen => {
-                    let mut args = Vec::new();
-                    if self.match_token(TokenType::RightParen).is_err() {
-                        args.push(self.expression()?);
-                        while self.match_token(TokenType::Comma).is_ok() {
-                            args.push(self.expression()?);
-                        }
-                        self.match_token(TokenType::RightParen)?;
-                    }
+                    let args = self.call_args()?;
                     expr = Expr::Call {
                         func: Box::new(expr),
                         args,
@@ -313,6 +310,18 @@ where
             }
         }
         Ok(expr)
+    }
+
+    fn call_args(&mut self) -> Result<Vec<Expr>> {
+        let mut args = Vec::new();
+        if self.match_token(TokenType::RightParen).is_err() {
+            args.push(self.expression()?);
+            while self.match_token(TokenType::Comma).is_ok() {
+                args.push(self.expression()?);
+            }
+            self.match_token(TokenType::RightParen)?;
+        }
+        Ok(args)
     }
 
     fn primary(&mut self) -> Result<Expr> {

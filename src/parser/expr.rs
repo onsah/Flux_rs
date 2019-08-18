@@ -22,7 +22,8 @@ pub enum Expr {
     },
     SelfAccess {
         table: Box<Expr>,
-        field: String,
+        method: String,
+        args: Vec<Expr>,
     },
     TableInit {
         keys: Option<Vec<Expr>>,
@@ -45,12 +46,27 @@ pub enum Expr {
     },
 }
 
+// TODO: use these function instead of manually wrapping
 impl Expr {
+    pub fn string(s: String) -> Self {
+        Expr::Literal(Literal::Str(s))
+    }
+
+    pub fn integer(i: f64) -> Self {
+        Expr::Literal(Literal::Number(i))
+    }
+
+    pub fn bool(b: bool) -> Self {
+        Expr::Literal(Literal::Bool(b))
+    }
+
     pub fn unit() -> Self {
         Expr::Literal(Literal::Unit)
     }
 
-    
+    pub fn nil() -> Self {
+        Expr::Literal(Literal::Nil)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

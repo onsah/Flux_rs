@@ -37,6 +37,7 @@ pub enum Instruction {
     /*Peek the table then get the value using key and push it to the stack */
     GetMethodImm {
         index: u8,
+        table_stack_index: u8,
     },
     /*pop the table then get the value using key and push to stack */
     GetFieldImm {

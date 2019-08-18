@@ -62,7 +62,7 @@ let Class = {
     end,
     "getX" = fn(self) self.x end,
 };
-let o = new(5, Class);
+let o = new(Class, 5);
 o:getX() // 5
 ```
 
