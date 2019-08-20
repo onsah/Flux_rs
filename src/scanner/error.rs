@@ -1,10 +1,24 @@
+use std::fmt::{Display, Formatter};
+
 #[derive(Copy, Clone, Debug)]
-pub enum LexError {
+pub struct LexError {
+    pub(super) kind: LexErrorKind,
+    pub(super) line: usize,
+}
+
+#[derive(Copy, Clone, Debug)]
+pub enum LexErrorKind {
     // Expected different char
-    UnexpectedChar { line: usize },
+    UnexpectedChar(char),
     // source is unfinished
-    TooShort { line: usize },
+    TooShort,
     // Invalid character
-    InvalidChar { ch: char, line: usize },
+    InvalidChar(char),
     Eof,
+}
+
+impl Display for LexError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[line {}] Lex Error: {:?}", self.line, self.kind)
+    }
 }

@@ -12,6 +12,7 @@ pub enum RuntimeError {
     IOError,
     InvalidFormat,
     WrongNumberOfArgs { expected: u8, found: u8 },
+    ExpectedArgsAtLeast(u8),
     DivideByZero,
     AssertionFailed(Value),
 }

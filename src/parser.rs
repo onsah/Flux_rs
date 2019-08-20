@@ -6,7 +6,7 @@ mod statement;
 pub use super::scanner::{Token, TokenType};
 use crate::error::FluxResult;
 use crate::scanner::Scanner;
-pub use error::ParserError;
+pub use error::{ParserError, ParserErrorKind};
 pub use expr::{BinaryOp, Expr, BlockExpr, Literal, UnaryOp};
 use lookahead::LookAhead;
 pub use statement::Statement;
@@ -69,7 +69,7 @@ where
             } else if self.match_token(TokenType::Semicolon).is_ok() {
                 Ok(Statement::Expr(expr))
             } else {
-                Err(ParserError::UnexpectedExpr(expr))
+                Err(self.make_error(ParserErrorKind::UnexpectedExpr(expr))?)
             }
         }
     }
@@ -352,9 +352,9 @@ where
         } else if self.match_token(TokenType::If).is_ok() {
             self.if_expr()
         } else {
-            Err(ParserError::UnexpectedToken {
+            Err(self.make_error(ParserErrorKind::UnexpectedToken {
                 token: self.current()?,
-            })
+            })?)
         }
     }
 
@@ -410,12 +410,12 @@ where
                         keys.push(expr);
                         values.push(value);
                     } else {
-                        return Err(ParserError::InitError);
+                        return Err(self.make_error(ParserErrorKind::InitError)?);
                     }
                 } else {
                     let expr = self.expression()?;
                     if self.match_token(TokenType::Equal).is_ok() {
-                        return Err(ParserError::InitError);
+                        return Err(self.make_error(ParserErrorKind::InitError)?);
                     } else {
                         values.push(expr);
                     }
@@ -463,7 +463,10 @@ where
                 Ok(stmt) => stmts.push(stmt),
                 Err(err) => {
                     match err {
-                        ParserError::UnexpectedExpr(expr) => break expr,
+                        ParserError {
+                            kind: ParserErrorKind::UnexpectedExpr(expr),
+                            ..
+                        } => break expr,
                         // TODO: check if matched with terminating token if so push literal expr
                         err => {
                             let typ = self.current()?.get_type();
@@ -641,7 +644,10 @@ mod tests {
         let source = "{3 = 6, \"foo\", \"xd\" = 5 + 3}";
         let mut parser = Parser::new(source).unwrap();
         let parsed = parser.expression();
-        assert_eq!(parsed, Err(ParserError::InitError));
+        assert_eq!(parsed, Err(ParserError {
+            kind: ParserErrorKind::InitError,
+            line: 1,
+        }));
 
         let source = "{}";
         let mut parser = Parser::new(source).unwrap();

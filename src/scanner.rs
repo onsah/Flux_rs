@@ -1,7 +1,7 @@
 mod error;
 mod token;
 
-pub use error::LexError;
+pub use error::{LexError, LexErrorKind};
 use std::iter::Peekable;
 use std::str::CharIndices;
 use token::KEYWORDS;
@@ -35,7 +35,7 @@ impl<'a> Scanner<'a> {
             match self.scan_next() {
                 Ok(token) => self.tokens.push(token),
                 Err(e) => match e {
-                    LexError::Eof => {
+                    LexError { kind: LexErrorKind::Eof, .. } => {
                         self.tokens.push(self.new_token(TokenType::Eof, 0, 0));
                         // We need this for match_token
                         self.tokens.push(self.new_token(TokenType::Eof, 0, 0));
@@ -128,10 +128,7 @@ impl<'a> Scanner<'a> {
                     } else if c.is_numeric() {
                         return self.number(start);
                     } else {
-                        return Err(LexError::InvalidChar {
-                            ch: c,
-                            line: self.line,
-                        });
+                        return Err(self.make_error(LexErrorKind::InvalidChar(c)));
                     }
                 }
             }
@@ -148,7 +145,7 @@ impl<'a> Scanner<'a> {
         let end = loop {
             match self.match_char('\"') {
                 Ok((i, _)) => break i,
-                Err(LexError::UnexpectedChar { .. }) => {
+                Err(LexError { kind: LexErrorKind::UnexpectedChar(_), .. }) => {
                     self.advance()?;
                 }
                 Err(err) => return Err(err),
@@ -184,7 +181,7 @@ impl<'a> Scanner<'a> {
     ) -> Result<Token> {
         match self.match_char(second_char) {
             Ok((end, _)) => Ok(self.new_token(double_type, start, end)),
-            Err(LexError::UnexpectedChar { .. }) => {
+            Err(LexError { kind: LexErrorKind::UnexpectedChar(_), .. }) => {
                 Ok(self.new_token(single_type, start, start + 1))
             }
             Err(err) => Err(err),
@@ -194,7 +191,7 @@ impl<'a> Scanner<'a> {
     fn advance(&mut self) -> Result<(usize, char)> {
         match self.chars.next() {
             Some(t) => Ok(t),
-            None => Err(LexError::Eof),
+            None => Err(self.make_error(LexErrorKind::Eof)),
         }
     }
 
@@ -204,10 +201,10 @@ impl<'a> Scanner<'a> {
                 if c == pred {
                     self.advance()
                 } else {
-                    Err(LexError::UnexpectedChar { line: self.line })
+                    Err(self.make_error(LexErrorKind::UnexpectedChar(c)))
                 }
             }
-            None => Err(LexError::TooShort { line: self.line }),
+            None => Err(self.make_error(LexErrorKind::TooShort)),
         }
     }
 
@@ -217,10 +214,10 @@ impl<'a> Scanner<'a> {
                 if pred(c) {
                     self.advance()
                 } else {
-                    Err(LexError::UnexpectedChar { line: self.line })
+                    Err(self.make_error(LexErrorKind::UnexpectedChar(c)))
                 }
             }
-            None => Err(LexError::TooShort { line: self.line }),
+            None => Err(self.make_error(LexErrorKind::TooShort)),
         }
     }
 
@@ -243,6 +240,13 @@ impl<'a> Scanner<'a> {
         Token {
             typ,
             text: self.source[start..end].to_string(),
+            line: self.line,
+        }
+    }
+
+    fn make_error(&self, kind: LexErrorKind) -> LexError {
+        LexError {
+            kind,
             line: self.line,
         }
     }

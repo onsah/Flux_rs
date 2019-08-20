@@ -175,7 +175,7 @@ These functions and modules provide some common functionality that most programm
 
 ### `print` and `println`
 ```
-native fn print(...): ()
+native fn print(...args): ()
     //...
 end
 ```
@@ -224,7 +224,7 @@ end
 
 ### `new`
 ```
-native fn new(class, ...): table
+native fn new(class, ...args): table
     //...
 end
 ```

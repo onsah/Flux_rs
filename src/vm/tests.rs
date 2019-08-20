@@ -86,13 +86,14 @@ unit_test! {
         \"setXLater\" = fn(self, x) 
             return fn()
                 self.x = x;
+                self
             end;
         end
     };
     obj:setX(10);
     let setLater = obj:setXLater(5);
     let oldX = obj:getX();
-    setLater();
+    assert(setLater().x == 5);
     return (oldX, obj:getX());
     ",
     Ok(Value::Tuple(vec![
@@ -135,6 +136,14 @@ unit_test! {
     return obj.foo;
     ",
     Ok(Value::Int(3))
+}
+
+unit_test! {
+    new_without_args,
+    "
+    let obj = new();
+    ",
+    Err(RuntimeError::ExpectedArgsAtLeast(1))
 }
 
 unit_test! {

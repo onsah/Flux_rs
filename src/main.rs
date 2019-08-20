@@ -15,28 +15,37 @@ use compiler::{Chunk, Compiler};
 use parser::Parser;
 use std::fs::File;
 use std::io::{Read, Write};
-use vm::Vm;
+use vm::{Vm, Value};
 
-fn main() -> Result<(), error::FluxError> {
+fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 2 {
-        repl()
+        match repl() {
+            Ok(()) => (),
+            Err(err) => println!("{:?}", err),
+        }
     } else {
         let path = &args[1];
         let mut file = File::open(path).unwrap();
         let mut buffer = String::new();
         file.read_to_string(&mut buffer).unwrap();
-        let mut parser = Parser::new(&buffer)?;
-        let ast = parser.parse().unwrap();
-        debug!("{:#?}", &ast);
-        let chunk = Compiler::compile(ast)?;
-        debug!("{:#?}", &chunk);
-        print_instructions(&chunk);
-        let mut vm = Vm::new();
-        let value = vm.run(chunk)?;
-        println!("Exited program. Evaluated: {}", value);
-        Ok(())
+        let value = eval(buffer.as_str());
+        match value {
+            Ok(value) => println!("Exited program. Evaluated: {}", value), 
+            Err(err) => println!("{}", err),
+        }
     }
+}
+
+fn eval(source: &str) -> Result<Value, error::FluxError> {
+    let mut parser = Parser::new(source)?;
+    let ast = parser.parse()?;
+    debug!("{:#?}", &ast);
+    let chunk = Compiler::compile(ast)?;
+    debug!("{:#?}", &chunk);
+    print_instructions(&chunk);
+    let mut vm = Vm::new();
+    vm.run(chunk).map_err(|e| e.into())
 }
 
 fn repl() -> Result<(), error::FluxError> {
@@ -48,13 +57,13 @@ fn repl() -> Result<(), error::FluxError> {
         std::io::stdout().flush().unwrap();
         stdin.read_line(&mut line).unwrap();
         let mut parser = Parser::new(&line)?;
-        let ast = parser.parse().unwrap();
+        let ast = parser.parse()?;
         debug!("{:?}", &ast);
         let chunk = Compiler::compile(ast)?;
         debug!("{:?}", &chunk);
         match vm.run(chunk) {
             Ok(_) => (),
-            Err(error) => println!("Error: {:?}", error),
+            Err(error) => println!("{:?}", error),
         }
         line.clear();
     }

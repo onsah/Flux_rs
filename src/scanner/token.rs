@@ -105,6 +105,10 @@ impl Token {
     pub fn extract_text(self) -> String {
         self.text
     }
+
+    pub fn get_line(&self) -> usize {
+        self.line
+    }
 }
 
 impl Default for Token {

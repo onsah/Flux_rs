@@ -1,5 +1,5 @@
 use super::Result;
-use super::{ParserError, Token, TokenType};
+use super::{ParserError, ParserErrorKind, Token, TokenType};
 
 const LOOKAHEAD_SIZE: usize = 3;
 
@@ -33,7 +33,7 @@ where
                 self.lookahead_insert(token.clone());
                 self.current()
             }
-            None => Err(ParserError::ExpectedToken),
+            None => Err(self.make_error(ParserErrorKind::ExpectedToken)?),
         }
     }
 
@@ -45,7 +45,7 @@ where
             self.advance()?;
             Ok(current)
         } else {
-            Err(ParserError::NotMatched { typ })
+            Err(self.make_error(ParserErrorKind::NotMatched { typ })?)
         }
     }
 
@@ -58,8 +58,12 @@ where
     pub(super) fn current(&self) -> Result<Token> {
         let i = self.lookahead_index;
         let token = self.lookahead[i].clone();
+        let line = token.get_line();
         if token.is_invalid() {
-            Err(ParserError::UnexpectedToken { token })
+            Err(ParserError {
+                kind: ParserErrorKind::UnexpectedToken { token },
+                line
+            })
         } else {
             // println!("current token: {:?}", token);
             Ok(token)
@@ -72,9 +76,16 @@ where
         let token = self.lookahead[i].clone();
         println!("peek: {:?}", token);
         if token.is_invalid() {
-            Err(ParserError::UnexpectedToken { token })
+            Err(self.make_error(ParserErrorKind::UnexpectedToken { token })?)
         } else {
             Ok(token)
         }
+    }
+
+    pub(super) fn make_error(&self, kind: ParserErrorKind) -> Result<ParserError> {
+        Ok(ParserError {
+            kind,
+            line: self.current()?.get_line(),
+        })
     }
 }

@@ -14,4 +14,4 @@ end;
 print("Enter a number: ");
 let i = number(readline());
 print("The result is: " );
-println(fib(i));
+fib(i)

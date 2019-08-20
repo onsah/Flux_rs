@@ -140,7 +140,10 @@ define_native! {
     NEW,
     |vm, args| {
         let table = Table::new().shared();
-        let klass = args.last().unwrap();
+        let klass = match args.last() {
+            Some(arg) => arg,
+            None => return Err(RuntimeError::ExpectedArgsAtLeast(1)),
+        };
         {
             let mut table = table.borrow_mut();
             table.set(Value::Embedded("__class__"), klass.clone());

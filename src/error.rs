@@ -2,6 +2,7 @@ use super::compiler::CompileError;
 use super::parser::ParserError;
 use super::scanner::LexError;
 use super::vm::RuntimeError;
+use std::fmt::{Display, Formatter};
 
 pub type FluxResult<T> = std::result::Result<T, FluxError>;
 
@@ -34,5 +35,17 @@ impl From<CompileError> for FluxError {
 impl From<RuntimeError> for FluxError {
     fn from(error: RuntimeError) -> Self {
         FluxError::Runtime(error)
+    }
+}
+
+impl Display for FluxError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            // TODO: format
+            FluxError::Lex(l) => write!(f, "{}", l),
+            FluxError::Compile(c) => write!(f, "{:?}", c),
+            FluxError::Runtime(r) => write!(f, "{:?}", r),
+            FluxError::Parse(c) => write!(f, "{}", c),
+        }
     }
 }
