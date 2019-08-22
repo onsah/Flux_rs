@@ -1,13 +1,15 @@
 mod chunk;
 mod error;
 mod instruction;
+mod metadata;
 
 use std::convert::TryInto;
-use crate::parser::{BinaryOp, Expr, BlockExpr, Literal, Statement, UnaryOp};
+use crate::parser::{Ast, BinaryOp, Expr, BlockExpr, Literal, Statement, UnaryOp};
 use crate::vm::{Value, Integer};
 pub use chunk::{Chunk, FuncProto, JumpCondition};
 pub use error::CompileError;
 pub use instruction::{BinaryInstr, Instruction, UnaryInstr};
+pub use metadata::MetaData;
 
 pub type CompileResult<T> = Result<T, CompileError>;
 
@@ -16,6 +18,7 @@ pub struct Compiler {
     locals: Vec<Local>,
     depth: u8,
     closure_scopes: Vec<ClosureScope>,
+    metadata: MetaData,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -44,28 +47,33 @@ pub struct UpValueDesc {
  * Compiling
  */
 impl Compiler {
-    pub fn compile(block: Expr) -> CompileResult<Chunk> {
-        let mut compiler = Self::new();
-        compiler.compile_expr(block)?;
+
+    pub fn compile(ast: Ast, metadata: MetaData) -> CompileResult<Chunk> {
+        let mut compiler = Self::new(metadata);
+        compiler.compile_ast(ast)?;
         compiler.chunk.push_instr(Instruction::Return {
             return_value: true,
         })?; 
-        /* for stmt in stmts {
-            compiler.compile_stmt(stmt)?;
-        }
-        compiler.chunk.push_instr(Instruction::Return {
-            return_value: false,
-        })?; */
         Ok(compiler.chunk)
     }
 
-    fn new() -> Self {
+    pub fn compile_without_metadata(ast: Ast) -> CompileResult<Chunk> {
+        let metadata = MetaData::default();
+        Self::compile(ast, metadata)
+    }
+
+    fn new(metadata: MetaData) -> Self {
         Compiler {
             chunk: Chunk::new(),
             locals: Vec::new(),
             depth: 0,
             closure_scopes: Vec::new(),
+            metadata
         }
+    }
+
+    fn compile_ast(&mut self, ast: Ast) -> CompileResult<()> {
+        self.compile_expr(ast.get_expr())
     }
 
     fn compile_stmt(&mut self, stmt: Statement) -> CompileResult<()> {
@@ -91,7 +99,7 @@ impl Compiler {
                 self.compile_expr(expr)?;
                 self.add_instr(Instruction::Return { return_value: true })
             }
-            Statement::Import(_) => unimplemented!(),
+            Statement::Import { path, name } => self.import_stmt(path, name),
         }
     }
 
@@ -177,6 +185,16 @@ impl Compiler {
         self.patch_placeholder(patch_index, offset as i8, JumpCondition::WhenFalse)?;
         self.add_instr(Instruction::Jump {
             offset: -((self.instructions().len() - start_index) as i8),
+        })
+    }
+
+    fn import_stmt(&mut self, path: Vec<String>, name: String) -> CompileResult<()> {
+        let abs_path = self.absolute_path(path);
+        let path_index = self.add_constant(abs_path.into(), false)?;
+        let name_index = self.add_constant(name.into(), false)?;
+        self.add_instr(Instruction::Import {
+            path_index,
+            name_index
         })
     }
 
@@ -506,6 +524,22 @@ impl Compiler {
         } else {
             Ok(offset as i8)
         }
+    }
+
+    // TODO: unit test
+    fn absolute_path(&self, mut path: Vec<String>) -> String {
+        let path_string = path.iter_mut()
+            .flat_map(|s| {
+                s.push('/');
+                s.chars()
+            });
+        let mut abs_path = "./".to_string();
+        abs_path.push_str(self.metadata.current_dir());
+        abs_path.push('/');
+        abs_path.extend(path_string);
+        abs_path.pop().unwrap();
+        abs_path.push_str(".flux");
+        abs_path
     }
 }
 

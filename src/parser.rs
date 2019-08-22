@@ -14,6 +14,15 @@ use std::ops::{Deref, DerefMut};
 
 type Result<'a, T> = std::result::Result<T, ParserError>;
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct Ast(BlockExpr);
+
+impl Ast {
+    pub fn get_expr(self) -> Expr {
+        Expr::Block(self.0)
+    }
+}
+
 pub struct Parser<I>
 where
     I: Iterator<Item = Token>,
@@ -34,15 +43,9 @@ impl<I> Parser<I>
 where
     I: Iterator<Item = Token>,
 {
-    pub fn parse(&mut self) -> Result<Expr> {
-        let block = self.block_expr(TokenType::Eof)?.into();
-        // self.match_token(TokenType::Eof)?;
-        Ok(block)
-        /* let mut statements = Vec::new();
-        while self.current()?.get_type() != TokenType::Eof {
-            statements.push(self.statement()?);
-        }
-        Ok(statements) */
+    pub fn parse(&mut self) -> Result<Ast> {
+        let block = self.block_expr(TokenType::Eof)?;
+        Ok(Ast(block))
     }
 
     pub fn statement(&mut self) -> Result<Statement> {
@@ -167,7 +170,20 @@ where
     }
 
     fn import_stmt(&mut self) -> Result<Statement> {
-        unimplemented!()
+        let mut path = Vec::new();
+        let module = self.match_token(TokenType::Identifier)?;
+        path.push(module.extract_text());
+        while self.match_token(TokenType::Dot).is_ok() {
+            let module = self.match_token(TokenType::Identifier)?;
+            path.push(module.extract_text());
+        }
+        self.match_token(TokenType::As)?;
+        let name = self.match_token(TokenType::Identifier)?.extract_text();
+        let _ = self.match_token(TokenType::Semicolon)?;
+        Ok(Statement::Import {
+            path,
+            name
+        })
     }
 
     fn assign_stmt(&mut self, variable: Expr) -> Result<Statement> {
@@ -733,7 +749,7 @@ mod tests {
         let parsed = parser.parse().unwrap();
         assert_eq!(
             parsed,
-            Expr::Block(BlockExpr {
+            Ast(BlockExpr {
                 stmts: vec![Statement::Let {
                     name: "foo".to_string(),
                     value: Expr::Block(BlockExpr {
@@ -745,8 +761,7 @@ mod tests {
                     })
                 }],
                 expr: Box::new(Expr::unit())
-            })
-            
+            })            
         );
         let source = "
         do
