@@ -12,10 +12,13 @@ pub enum Function {
     Native(NativeFunction),
 }
 
+pub type FuncProtoRef = Rc<FuncProto>;
+
 #[derive(Clone, Debug)]
 pub struct UserFunction {
     args_len: u8,
-    proto_index: usize,
+    // What about holding a rc?
+    proto: FuncProtoRef,
     upvalues: Vec<UpValue>,
     this: Option<Rc<RefCell<Table>>>,
 }
@@ -43,8 +46,8 @@ pub enum ArgsLen {
 }
 
 impl Function {
-    pub fn new_user(proto: &FuncProto, proto_index: usize) -> Self {
-        Function::User(UserFunction::new(proto, proto_index))
+    pub fn new_user(proto: FuncProtoRef) -> Self {
+        Function::User(UserFunction::new(proto))
     }
 
     pub fn args_len(&self) -> ArgsLen {
@@ -65,10 +68,9 @@ impl Function {
 impl UserFunction {
     pub const MAX_UPVALUES: u8 = std::u8::MAX;
 
-    pub fn new(proto: &FuncProto, proto_index: usize) -> Self {
+    pub fn new(proto: FuncProtoRef) -> Self {
         UserFunction {
             args_len: proto.args_len,
-            proto_index,
             // TODO: Impl Into<UpValue> for UpValueDesc
             upvalues: proto
                 .upvalues
@@ -81,6 +83,7 @@ impl UserFunction {
                     }
                 })
                 .collect(),
+            proto,
             this: None,
         }
     }
@@ -110,8 +113,8 @@ impl UserFunction {
         self.upvalues
     }
 
-    pub fn proto_index(&self) -> usize {
-        self.proto_index
+    pub fn proto(&self) -> FuncProtoRef {
+        self.proto.clone()
     }
 
     pub fn is_method(&self) -> bool {
@@ -154,14 +157,15 @@ impl NativeFunction {
 
 impl PartialEq for UserFunction {
     fn eq(&self, rhs: &Self) -> bool {
-        self.proto_index == rhs.proto_index
+        self.proto == rhs.proto
     }
 }
 
 impl Hash for UserFunction {
     // Code start should be unique
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.proto_index.hash(state)
+        let adress = self.proto.as_ref() as *const FuncProto; 
+        adress.hash(state)
     }
 }
 

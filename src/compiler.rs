@@ -407,9 +407,7 @@ impl Compiler {
     }
 
     fn function_def(&mut self, args: Vec<String>, body: BlockExpr) -> CompileResult<()> {
-        // let patch_index = self.chunk.push_placeholder()?; // To prevent accidentally entering a function
         let args_len = args.len() as u8;
-        // let code_start = self.chunk.instructions().len() - 1;
         self.enter_function();
         for arg in args {
             self.push_local(arg);
@@ -422,9 +420,6 @@ impl Compiler {
             return_value: true,
         })?;
         let closure_scope = self.exit_function()?;
-        // Patch after inserting pop instructions
-        // let offset = self.chunk.instructions().len() - patch_index;
-        // self.chunk.patch_placeholder(patch_index, offset as i8, JumpCondition::None)?;
         // Add new func proto
         let upvalues = closure_scope.upvalues;
         let instructions = closure_scope.instructions;
@@ -550,22 +545,6 @@ impl Compiler {
             Ok(offset as i8)
         }
     }
-
-    // TODO: unit test
-    /* fn absolute_path(&self, mut path: Vec<String>) -> String {
-        let path_string = path.iter_mut()
-            .flat_map(|s| {
-                s.push('/');
-                s.chars()
-            });
-        let mut abs_path = "./".to_string();
-        abs_path.push_str(self.metadata.current_dir());
-        abs_path.push('/');
-        abs_path.extend(path_string);
-        abs_path.pop().unwrap();
-        abs_path.push_str(".flux");
-        abs_path
-    } */
 }
 
 /**

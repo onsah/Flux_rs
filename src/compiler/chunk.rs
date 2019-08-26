@@ -2,15 +2,16 @@ use super::Instruction;
 use super::UpValueDesc;
 use super::{CompileError, CompileResult};
 use crate::vm::lib::constant_names;
-use crate::vm::Value;
+use crate::vm::{Value, FuncProtoRef};
 use crate::sourcefile::SourceFile;
 use std::collections::HashMap;
+use std::rc::Rc;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Chunk {
     instructions: Vec<Instruction>,
     constants: Vec<Value>,
-    prototypes: Vec<FuncProto>,
+    prototypes: Vec<FuncProtoRef>,
     // Those two can be combined
     imports: HashMap<String, SourceFile>,
     module_entries: HashMap<String, usize>,
@@ -142,15 +143,15 @@ impl Chunk {
         upvalues: Vec<UpValueDesc>,
         instructions: Vec<Instruction>,
     ) -> usize {
-        self.prototypes.push(FuncProto {
+        self.prototypes.push(Rc::new(FuncProto {
             args_len,
             upvalues,
             instructions: instructions.into_boxed_slice(),
-        });
+        }));
         self.prototypes.len() - 1
     }
 
-    pub fn prototypes(&self) -> &[FuncProto] {
+    pub fn prototypes(&self) -> &[FuncProtoRef] {
         self.prototypes.as_slice()
     }
 

@@ -9,7 +9,7 @@ use crate::compiler::{BinaryInstr, Chunk, Instruction, UnaryInstr};
 pub use lib::PREDEFINED_CONSTANTS;
 pub use error::RuntimeError;
 pub use value::{
-    ArgsLen, Float, Function, Integer, NativeFunction, Table, UpValue, UserFunction, Value,
+    ArgsLen, Float, Function, Integer, NativeFunction, Table, UpValue, UserFunction, FuncProtoRef, Value,
 };
 use frame::Frame;
 use std::cell::RefCell;
@@ -32,17 +32,18 @@ impl Vm {
     }
 
     pub fn run(&mut self, chunk: Chunk) -> RuntimeResult<Value> {
-        self.current_chunk = Some(chunk);
+        self.set_chunk(chunk);
         self.init_call();
         self.main_loop()
     }
 
-    fn run_module(&mut self, chunk: Chunk, pc: usize) -> RuntimeResult<Value> {
-        self.current_chunk = Some(chunk);
+    fn run_module(&mut self, chunk: Chunk, pc: usize) -> RuntimeResult<Chunk> {
+        self.set_chunk(chunk);
         let mut frame = Frame::default();
         frame.pc = pc;
         self.frames.push(frame);
-        self.main_loop()
+        self.main_loop()?;
+        Ok(self.current_chunk.take().expect("Expected a chunk"))
     }
 
     fn main_loop(&mut self) -> RuntimeResult<Value> {
@@ -183,7 +184,7 @@ impl Vm {
                 Instruction::FuncDef { proto_index } => {
                     let proto = self.current_chunk().prototypes()[proto_index].clone();
                     self.stack
-                        .push(Value::Function(Function::new_user(&proto, proto_index)))
+                        .push(Value::Function(Function::new_user(proto)))
                 }
                 Instruction::Call { args_len } => {
                     let function = self.pop_stack()?;
@@ -230,7 +231,11 @@ impl Vm {
         let mod_name = self.current_chunk().constants()[name_index].as_str()?.to_string();
         let start_pc = self.current_chunk().get_module_pc(&mod_name);
         let mut vm = Vm::new();
-        vm.run_module(self.current_chunk().clone(), start_pc)?;
+        // Note: clones every time we run
+        // Idea: run_module can return the chunk back
+        let chunk = self.current_chunk.take().unwrap();
+        let chunk = vm.run_module(chunk, start_pc)?;
+        self.current_chunk = Some(chunk);
         let module = Table::from_map(vm.globals).into();
         // Note: it silently emits if module imported twice
         self.globals.insert(mod_name.into(), module);
@@ -355,14 +360,14 @@ impl Vm {
 
     fn call_user(&mut self, mut function: UserFunction, pushed_args: u8) -> RuntimeResult<()> {
         if pushed_args == function.args_len() {
-            let proto_index = function.proto_index();
+            let proto = function.proto();
             let stack_top = self.stack.len() - function.args_len() as usize;
             if let Some(this) = function.take_this() {
                 self.stack.push(this.into())
             }
             let upvalues = function.extract_upvalues();
             self.frames
-                .push(Frame::new(0, proto_index, stack_top, upvalues));
+                .push(Frame::new(0, proto, stack_top, upvalues));
             Ok(())
         } else {
             Err(RuntimeError::WrongNumberOfArgs {
@@ -523,8 +528,8 @@ impl Vm {
     }
 
     fn instructions(&self) -> RuntimeResult<&[Instruction]> {
-        Ok(match self.current_frame()?.proto_index {
-            Some(index) => self.current_chunk().prototypes()[index]
+        Ok(match self.current_frame()?.proto.as_ref() {
+            Some(proto) => proto
                 .instructions
                 .as_ref(),
             None => self.current_chunk().instructions(),
@@ -561,6 +566,10 @@ impl Vm {
             debug!("{}", value)
         }
         debug!("**********STACK END**********");
+    }
+
+    fn set_chunk(&mut self, chunk: Chunk) {
+        self.current_chunk = Some(chunk)
     }
 }
 

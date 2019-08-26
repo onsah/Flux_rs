@@ -5,7 +5,7 @@ use std::fmt::{self, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
-pub use function::{ArgsLen, Function, NativeFunction, UpValue, UserFunction};
+pub use function::{ArgsLen, Function, NativeFunction, UpValue, UserFunction, FuncProtoRef};
 pub use table::Table;
 
 mod function;
