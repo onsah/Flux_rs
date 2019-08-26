@@ -1,5 +1,5 @@
-use super::{Expr, Statement};
-use crate::scanner::{Token, TokenType};
+use super::Expr;
+use crate::scanner::{LexError, LexErrorKind, Token, TokenType};
 use std::fmt::{Display, Formatter};
 
 // TODO: ParserErrorKind and ParserError
@@ -18,15 +18,21 @@ pub enum ParserErrorKind {
     // mixing array and table initialization
     // Ex: let t = { 3, foo = 5 }
     InitError,
-    // Expectes return statement or an expression at the end of the block
-    ExprOrReturn,
-    UnexpectedStmt(Statement),
     UnexpectedExpr(Expr),
-    ExpectedMethod,
+    Lex(LexErrorKind)
 }
 
 impl Display for ParserError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "[line {}] Parsing Error: {:?}", self.line, self.kind)
+    }
+}
+
+impl From<LexError> for ParserError {
+    fn from(lex_error: LexError) -> Self {
+        ParserError {
+            kind: ParserErrorKind::Lex(lex_error.kind),
+            line: lex_error.line,
+        }
     }
 }

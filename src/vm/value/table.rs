@@ -27,6 +27,13 @@ impl Table {
         }
     }
 
+    pub fn from_map(table: HashMap<Value, Value>) -> Self {
+        Table {
+            table,
+            array: vec![],
+        }
+    }
+
     pub fn set(&mut self, key: Value, value: Value) {
         self.table.insert(key, value);
     }

@@ -91,10 +91,15 @@ pub enum Instruction {
     GetUpval {
         index: u16,
     },
+    // SetUpval
     CloseUpval {
         index: u8,
     },
     Integer(i32),
+    // Run the file then push the global table to stack
+    Import {
+        name_index: u8,
+    }
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]

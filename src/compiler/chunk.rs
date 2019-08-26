@@ -3,13 +3,17 @@ use super::UpValueDesc;
 use super::{CompileError, CompileResult};
 use crate::vm::lib::constant_names;
 use crate::vm::Value;
+use crate::sourcefile::SourceFile;
+use std::collections::HashMap;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Chunk {
     instructions: Vec<Instruction>,
     constants: Vec<Value>,
     prototypes: Vec<FuncProto>,
-    // exports: Option<HashMap<Value, Value>>,
+    // Those two can be combined
+    imports: HashMap<String, SourceFile>,
+    module_entries: HashMap<String, usize>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -34,8 +38,18 @@ impl Chunk {
     }
 
     #[inline]
-    pub fn push_instr(&mut self, instr: Instruction) -> CompileResult<()> {
+    fn push_instr(&mut self, instr: Instruction) -> CompileResult<()> {
         self.instructions.push(instr);
+        Ok(())
+    }
+
+    pub fn add_import(&mut self, import: SourceFile, name: String) -> CompileResult<()> {
+        if self.imports.contains_key(&name) {
+            panic!("module '{}' is already imported", &name);
+        }
+        let name_index = self.add_constant(name.clone().into())?;
+        self.push_instr(Instruction::Import { name_index })?;
+        let _ = self.imports.insert(name, import);
         Ok(())
     }
 
@@ -151,6 +165,18 @@ impl Chunk {
     pub fn constants(&self) -> &[Value] {
         self.constants.as_slice()
     }
+
+    pub fn take_imports(&mut self) -> HashMap<String, SourceFile> {
+        std::mem::replace(&mut self.imports, HashMap::new())
+    }
+
+    pub fn add_entry(&mut self, mod_name: String, pc: usize) {
+        self.module_entries.insert(mod_name, pc);
+    }
+
+    pub fn get_module_pc(&self, mod_name: &str) -> usize {
+        *self.module_entries.get(mod_name).expect("Module not found")
+    }
 }
 
 impl Default for Chunk {
@@ -159,6 +185,8 @@ impl Default for Chunk {
             instructions: Vec::new(),
             constants: constant_names().collect(),
             prototypes: Vec::new(),
+            imports: HashMap::new(),
+            module_entries: HashMap::new(),
         }
     }
 }

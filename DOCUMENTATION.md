@@ -56,24 +56,21 @@ println(foo) // bar
 
 ### Import and Export statements
 `export { *( [identifier] {, [identifier] *,} ) }`
-`import [identifier] *{.[identifier]};`
 
-Export statements indicate which parts of the block will be exposed to the outside. A module can export only global variables. A module can have either one or zero export statement. Import statement imports the all variables from module to name of that module. Import statements create a global variable.
+`import [identifier] *{.[identifier]} as [identifier];`
+
+Export statements indicate which parts of the block will be exposed to the outside. A module can export only global variables. A module can have either one or zero export statement. Import statement imports the all exports from module to name of that module. Import statements create a global variable. Export statement have not implemented to the language yet. Instead all global variables from the module are imported.
 
 File module.flux
 ```
-export {
-    bar
-}
-
 bar = fn() "bar" end;
 ```
 
 other file 
 ```
-import module;
+import module as m;
 
-module.bar() // "bar"
+m.bar() // "bar"
 ```
 
 ### Expression statement

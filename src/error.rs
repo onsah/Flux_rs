@@ -6,12 +6,12 @@ use std::fmt::{Display, Formatter};
 
 pub type FluxResult<T> = std::result::Result<T, FluxError>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum FluxError {
     Lex(LexError),
     Parse(ParserError),
     Compile(CompileError),
-    Runtime(RuntimeError),
+    Runtime(Box<RuntimeError>),
 }
 
 impl From<LexError> for FluxError {
@@ -34,7 +34,7 @@ impl From<CompileError> for FluxError {
 
 impl From<RuntimeError> for FluxError {
     fn from(error: RuntimeError) -> Self {
-        FluxError::Runtime(error)
+        FluxError::Runtime(Box::new(error))
     }
 }
 

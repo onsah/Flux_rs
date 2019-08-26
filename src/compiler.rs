@@ -1,15 +1,16 @@
 mod chunk;
 mod error;
 mod instruction;
-mod metadata;
+mod io;
 
 use std::convert::TryInto;
-use crate::parser::{Ast, BinaryOp, Expr, BlockExpr, Literal, Statement, UnaryOp};
+use crate::parser::{Parser, Ast, BinaryOp, Expr, BlockExpr, Literal, Statement, UnaryOp};
 use crate::vm::{Value, Integer};
+use crate::sourcefile::{SourceFile, MetaData};
 pub use chunk::{Chunk, FuncProto, JumpCondition};
 pub use error::CompileError;
 pub use instruction::{BinaryInstr, Instruction, UnaryInstr};
-pub use metadata::MetaData;
+use self::io::absolute_path;
 
 pub type CompileResult<T> = Result<T, CompileError>;
 
@@ -48,18 +49,39 @@ pub struct UpValueDesc {
  */
 impl Compiler {
 
-    pub fn compile(ast: Ast, metadata: MetaData) -> CompileResult<Chunk> {
+    pub fn compile(
+        SourceFile {
+            ast,
+            metadata,
+        }: SourceFile
+    ) -> CompileResult<Chunk> {
         let mut compiler = Self::new(metadata);
-        compiler.compile_ast(ast)?;
-        compiler.chunk.push_instr(Instruction::Return {
-            return_value: true,
-        })?; 
+        compiler.compile_module(ast)?;
+        // Compile all imports
+        let imports = compiler.chunk.take_imports();
+        for (name, sf) in imports {
+            let SourceFile {
+                ast,
+                metadata
+            } = sf;
+            // Get start point
+            let mod_start_pc = compiler.chunk.instructions().len();
+            println!("mod {} starts at {}", name, mod_start_pc);
+            compiler.chunk.add_entry(name, mod_start_pc);
+            // Compile module
+            let metadata = std::mem::replace(&mut compiler.metadata, metadata);
+            compiler.compile_module(ast)?;
+            // This may not be neccessary because runtime doesn't need metadata
+            compiler.metadata = metadata;
+        }
         Ok(compiler.chunk)
     }
 
-    pub fn compile_without_metadata(ast: Ast) -> CompileResult<Chunk> {
-        let metadata = MetaData::default();
-        Self::compile(ast, metadata)
+    fn compile_module(&mut self, ast: Ast) -> CompileResult<()> {
+        self.compile_ast(ast)?;
+        self.add_instr(Instruction::Return {
+            return_value: true,
+        })
     }
 
     fn new(metadata: MetaData) -> Self {
@@ -189,13 +211,16 @@ impl Compiler {
     }
 
     fn import_stmt(&mut self, path: Vec<String>, name: String) -> CompileResult<()> {
-        let abs_path = self.absolute_path(path);
-        let path_index = self.add_constant(abs_path.into(), false)?;
-        let name_index = self.add_constant(name.into(), false)?;
-        self.add_instr(Instruction::Import {
-            path_index,
-            name_index
-        })
+        // Get source file
+        let abs_path = absolute_path(self.metadata.current_dir(), path.as_slice());
+        let source = io::read_file(abs_path.clone())?;
+        // Parse and store
+        let ast = Parser::parse_str(source.as_str())?;
+        let metadata = MetaData {
+            dir: abs_path.parent().expect("Expected a parent directory").to_owned(), 
+        };
+        // Add import to table ad push instruction
+        self.chunk.add_import(SourceFile { ast, metadata }, name.clone())
     }
 
     fn compile_expr(&mut self, expr: Expr) -> CompileResult<()> {
@@ -527,7 +552,7 @@ impl Compiler {
     }
 
     // TODO: unit test
-    fn absolute_path(&self, mut path: Vec<String>) -> String {
+    /* fn absolute_path(&self, mut path: Vec<String>) -> String {
         let path_string = path.iter_mut()
             .flat_map(|s| {
                 s.push('/');
@@ -540,7 +565,7 @@ impl Compiler {
         abs_path.pop().unwrap();
         abs_path.push_str(".flux");
         abs_path
-    }
+    } */
 }
 
 /**

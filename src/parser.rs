@@ -4,7 +4,6 @@ mod lookahead;
 mod statement;
 
 pub use super::scanner::{Token, TokenType};
-use crate::error::FluxResult;
 use crate::scanner::Scanner;
 pub use error::{ParserError, ParserErrorKind};
 pub use expr::{BinaryOp, Expr, BlockExpr, Literal, UnaryOp};
@@ -31,11 +30,16 @@ where
 }
 
 impl Parser<std::vec::IntoIter<Token>> {
-    pub fn new(source: &str) -> FluxResult<Self> {
+    pub fn new(source: &str) -> Result<Self> {
         let mut scanner = Scanner::new(source);
         scanner.scan()?;
         let lookahead = LookAhead::new(scanner.extract_tokens().into_iter());
         Ok(Parser { lookahead })
+    }
+
+    pub fn parse_str(source: &str) -> Result<Ast> {
+        let mut parser = Parser::new(source)?;
+        parser.parse()
     }
 }
 

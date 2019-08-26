@@ -2,6 +2,7 @@
 extern crate lazy_static;
 #[macro_use]
 extern crate maplit;
+extern crate dirs;
 
 mod compiler;
 pub mod error;
@@ -10,10 +11,13 @@ mod macros;
 mod parser;
 mod scanner;
 mod vm;
+mod sourcefile;
 
 use compiler::{Chunk, Compiler};
 use parser::Parser;
+use sourcefile::{SourceFile, MetaData};
 use std::fs::File;
+use std::path::PathBuf;
 use std::io::{Read, Write};
 use vm::{Vm, Value};
 
@@ -29,7 +33,7 @@ fn main() {
         let mut file = File::open(path).unwrap();
         let mut buffer = String::new();
         file.read_to_string(&mut buffer).unwrap();
-        let value = eval(buffer.as_str());
+        let value = eval(buffer.as_str(), path.as_str());
         match value {
             Ok(value) => println!("Exited program. Evaluated: {}", value), 
             Err(err) => println!("{}", err),
@@ -37,11 +41,18 @@ fn main() {
     }
 }
 
-fn eval(source: &str) -> Result<Value, error::FluxError> {
+fn eval(source: &str, path: &str) -> Result<Value, error::FluxError> {
     let mut parser = Parser::new(source)?;
     let ast = parser.parse()?;
     debug!("{:#?}", &ast);
-    let chunk = Compiler::compile(ast)?;
+    let dir = {
+        let mut dir = PathBuf::from(path);
+        dir.pop();
+        dir
+    };
+    let metadata = MetaData { dir };
+    debug!("Metadata: {:?}", &metadata);
+    let chunk = Compiler::compile(SourceFile { ast, metadata })?;
     debug!("{:#?}", &chunk);
     print_instructions(&chunk);
     let mut vm = Vm::new();
@@ -59,7 +70,10 @@ fn repl() -> Result<(), error::FluxError> {
         let mut parser = Parser::new(&line)?;
         let ast = parser.parse()?;
         debug!("{:?}", &ast);
-        let chunk = Compiler::compile(ast)?;
+        let chunk = Compiler::compile(SourceFile {
+            ast, 
+            metadata: MetaData::default()
+        })?;
         debug!("{:?}", &chunk);
         match vm.run(chunk) {
             Ok(_) => (),

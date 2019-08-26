@@ -24,7 +24,10 @@ pub enum Statement {
     },
     Print(Expr),
     Return(Expr),
-    Import(Vec<String>),
+    Import {
+        path: Vec<String>,
+        name: String,
+    },
 }
 
 impl Statement {

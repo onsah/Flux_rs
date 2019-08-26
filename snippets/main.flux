@@ -1,3 +1,3 @@
-import math;
+import module as mod;
 
-math.sqrt(5)
+mod.foo;

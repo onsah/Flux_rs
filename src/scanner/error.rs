@@ -1,12 +1,12 @@
 use std::fmt::{Display, Formatter};
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct LexError {
-    pub(super) kind: LexErrorKind,
-    pub(super) line: usize,
+    pub kind: LexErrorKind,
+    pub line: usize,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum LexErrorKind {
     // Expected different char
     UnexpectedChar(char),

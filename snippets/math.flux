@@ -1,9 +1,5 @@
-export {
-    sqrt
-}
+foo = 3;
 
-sqrt = fn(x) x * x end;
-
-/////////////////////////////////
-
-export sqrt = fn(x) x * x end;
+square = fn(x)
+    x * x
+end;

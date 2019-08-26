@@ -250,3 +250,50 @@ unit_test! {
     ",
     Ok(Value::Int(25))
 }
+
+unit_test! {
+    block_closure,
+    "
+    let foo = do
+        let i = 0;
+        fn()
+            i
+        end
+    end;
+    foo()
+    ",
+    Ok(Value::Int(0))
+}
+
+#[test]
+fn import() {
+    use std::path::PathBuf;
+    use std::fs::{File, canonicalize};
+    use std::io::Read;
+
+    let path = {
+        let mut pathbuf = canonicalize(PathBuf::from(file!())).unwrap();
+        pathbuf.pop();
+        pathbuf.push("tests");
+        pathbuf.push("import");
+        pathbuf.set_extension("flux");
+        pathbuf
+    };
+    println!("Path is: {}", path.to_str().unwrap());
+    let dir = path.parent().unwrap().to_owned();
+    let mut file = File::open(path).unwrap();
+    let mut source = String::new();
+    file.read_to_string(&mut source).unwrap(); 
+
+    use crate::sourcefile::{SourceFile, MetaData};
+
+    let mut parser = Parser::new(&source).unwrap();
+    let ast = parser.parse().unwrap();
+    let chunk = Compiler::compile(SourceFile {
+        ast, 
+        metadata: MetaData { dir },
+    }).unwrap();
+    let mut vm = Vm::new();
+
+    assert_eq!(vm.run(chunk), Ok(Value::Int(25)));
+}

@@ -6,15 +6,15 @@ mod tests;
 mod value;
 
 use crate::compiler::{BinaryInstr, Chunk, Instruction, UnaryInstr};
-pub use error::RuntimeError;
-use frame::Frame;
 pub use lib::PREDEFINED_CONSTANTS;
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::rc::Rc;
+pub use error::RuntimeError;
 pub use value::{
     ArgsLen, Float, Function, Integer, NativeFunction, Table, UpValue, UserFunction, Value,
 };
+use frame::Frame;
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::rc::Rc;
 
 pub type RuntimeResult<T> = Result<T, RuntimeError>;
 
@@ -34,6 +34,18 @@ impl Vm {
     pub fn run(&mut self, chunk: Chunk) -> RuntimeResult<Value> {
         self.current_chunk = Some(chunk);
         self.init_call();
+        self.main_loop()
+    }
+
+    fn run_module(&mut self, chunk: Chunk, pc: usize) -> RuntimeResult<Value> {
+        self.current_chunk = Some(chunk);
+        let mut frame = Frame::default();
+        frame.pc = pc;
+        self.frames.push(frame);
+        self.main_loop()
+    }
+
+    fn main_loop(&mut self) -> RuntimeResult<Value> {
         loop {
             self.execute()?;
             if self.frames.is_empty() {
@@ -74,7 +86,7 @@ impl Vm {
                     };
                     if let Value::Function(function) = &mut value {
                         if let Function::User(func) = function {
-                            let frame = self.current_frame().unwrap();
+                            let frame = self.current_frame().expect("Expected a call frame in return");
                             // Closure upvalues that will be dropped
                             for upval in func.upvalues_mut() {
                                 if let UpValue::Open { index } = upval {
@@ -84,7 +96,7 @@ impl Vm {
                                             let value = self.stack[index].clone();
                                             *upval = UpValue::Closed(value);
                                         }
-                                        // Note: can be moved somehow since it will be dropped immediately
+                                        // Note: canunwrap be moved somehow since it will be dropped immediately
                                         UpValue::Closed(value) => {
                                             *upval = UpValue::Closed(value.clone());
                                         }
@@ -98,7 +110,7 @@ impl Vm {
                         self.pop_stack()?;
                     }
                     self.stack.push(value);
-                    self.frames.pop().unwrap();
+                    self.frames.pop().expect("Stack frame is empty");
                     // self.print_stack();
                     return Ok(());
                 }
@@ -117,7 +129,7 @@ impl Vm {
                 }
                 Instruction::SetGlobal { index } => {
                     let name = self.current_chunk().constants()[index as usize].clone();
-                    let value = self.stack.pop().unwrap().clone();
+                    let value = self.stack.pop().unwrap();
                     self.globals.insert(name, value);
                 }
                 Instruction::GetLocal { index, frame } => {
@@ -204,6 +216,7 @@ impl Vm {
                     }
                 }
                 Instruction::Integer(value) => self.stack.push(value.into()),
+                Instruction::Import { name_index } => { self.import(name_index as usize)? },
                 _ => return Err(RuntimeError::UnsupportedInstruction(instr)),
             }
             let f = self.current_frame_mut()?;
@@ -211,6 +224,17 @@ impl Vm {
             self.print_call_stack();
             self.print_stack()
         }
+    }
+
+    fn import(&mut self, name_index: usize) -> RuntimeResult<()> {
+        let mod_name = self.current_chunk().constants()[name_index].as_str()?.to_string();
+        let start_pc = self.current_chunk().get_module_pc(&mod_name);
+        let mut vm = Vm::new();
+        vm.run_module(self.current_chunk().clone(), start_pc)?;
+        let module = Table::from_map(vm.globals).into();
+        // Note: it silently emits if module imported twice
+        self.globals.insert(mod_name.into(), module);
+        Ok(())
     }
 
     // TODO: look recursively for '__class__' attribute when something is returns nil
@@ -495,7 +519,7 @@ impl Vm {
 
     #[inline]
     fn current_chunk(&self) -> &Chunk {
-        self.current_chunk.as_ref().unwrap()
+        self.current_chunk.as_ref().expect("Expected a chunk")
     }
 
     fn instructions(&self) -> RuntimeResult<&[Instruction]> {
