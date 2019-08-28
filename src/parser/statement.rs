@@ -33,7 +33,10 @@ pub enum Statement {
 impl Statement {
     pub fn can_convert_expr(&self) -> bool {
         match self {
-            Statement::Expr(_) => true,
+            Statement::Expr(expr) => match expr {
+                Expr::If { .. } | Expr::Function { .. } => true,
+                _ => false,
+            },
             Statement::If { else_block, .. } => else_block.is_some(),
             _ => false,
         }

@@ -99,6 +99,10 @@ pub enum Instruction {
     // Run the file then push the global table to stack
     Import {
         name_index: u8,
+    },
+    ExitBlock { 
+        pop: u16,
+        return_value: bool,
     }
 }
 

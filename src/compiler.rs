@@ -57,7 +57,7 @@ impl Compiler {
     ) -> CompileResult<Chunk> {
         let mut compiler = Self::new(metadata);
         compiler.compile_module(ast)?;
-        // Compile all imports
+        /* // Compile all imports
         let imports = compiler.chunk.take_imports();
         for (name, sf) in imports {
             let SourceFile {
@@ -73,7 +73,7 @@ impl Compiler {
             compiler.compile_module(ast)?;
             // This may not be neccessary because runtime doesn't need metadata
             compiler.metadata = metadata;
-        }
+        } */
         Ok(compiler.chunk)
     }
 
@@ -162,13 +162,11 @@ impl Compiler {
     }
 
     fn block_stmt(&mut self, statements: Vec<Statement>) -> CompileResult<()> {
-        self.scope_incr();
+        self.enter_scope();
         for stmt in statements {
             self.compile_stmt(stmt)?;
         }
-        for _ in 0..self.scope_decr() {
-            self.add_instr(Instruction::Pop)?;
-        }
+        self.exit_scope(false)?;
         Ok(())
     }
 
@@ -219,8 +217,14 @@ impl Compiler {
         let metadata = MetaData {
             dir: abs_path.parent().expect("Expected a parent directory").to_owned(), 
         };
+        // Compile the module
+        let chunk = Compiler::compile(SourceFile { ast, metadata })
+            .map_err(|error| CompileError::ModuleError {
+                name: name.clone(),
+                error: Box::new(error),
+            })?;
         // Add import to table ad push instruction
-        self.chunk.add_import(SourceFile { ast, metadata }, name.clone())
+        self.chunk.add_import(chunk, name)
     }
 
     fn compile_expr(&mut self, expr: Expr) -> CompileResult<()> {
@@ -435,10 +439,12 @@ impl Compiler {
     }
 
     fn block_expr(&mut self, stmts: Vec<Statement>, expr: Expr) -> CompileResult<()> {
+        self.enter_scope();
         for stmt in stmts {
             self.compile_stmt(stmt)?;
         }
-        self.compile_expr(expr)
+        self.compile_expr(expr)?;
+        self.exit_scope(true)
     }
 
     fn if_expr(
@@ -580,10 +586,6 @@ impl Compiler {
         })
     }
 
-    fn scope_incr(&mut self) {
-        self.depth += 1
-    }
-
     fn enter_function(&mut self) {
         self.scope_incr();
         self.closure_scopes.push(ClosureScope {
@@ -594,6 +596,27 @@ impl Compiler {
         })
     }
 
+    fn exit_function(&mut self) -> CompileResult<ClosureScope> {
+        let pop_count = self.scope_decr();
+        for _ in 0..pop_count {
+            self.add_instr(Instruction::Pop)?;
+        } 
+        Ok(self.closure_scopes.pop().unwrap())
+    }
+
+    fn enter_scope(&mut self) {
+        self.scope_incr()
+    }
+
+    fn exit_scope(&mut self, return_value: bool) -> CompileResult<()> {
+        let pop = self.scope_decr() as u16;
+        self.add_instr(Instruction::ExitBlock { pop, return_value })
+    }
+
+    fn scope_incr(&mut self) {
+        self.depth += 1
+    }
+
     fn scope_decr(&mut self) -> usize {
         self.depth -= 1;
         let mut pop_count = 0;
@@ -602,13 +625,5 @@ impl Compiler {
             pop_count += 1;
         }
         pop_count
-    }
-
-    fn exit_function(&mut self) -> CompileResult<ClosureScope> {
-        let pop_count = self.scope_decr();
-        for _ in 0..pop_count {
-            self.add_instr(Instruction::Pop)?;
-        } 
-        Ok(self.closure_scopes.pop().unwrap())
     }
 }

@@ -12,6 +12,10 @@ pub enum CompileError {
     TooLongToJump,
     Parse(ParserError),
     IoError(io::ErrorKind),
+    ModuleError {
+        name: String,
+        error: Box<CompileError>,
+    }
 }
 
 impl From<ParserError> for CompileError {

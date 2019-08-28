@@ -12,9 +12,8 @@ pub struct Chunk {
     instructions: Vec<Instruction>,
     constants: Vec<Value>,
     prototypes: Vec<FuncProtoRef>,
-    // Those two can be combined
-    imports: HashMap<String, SourceFile>,
-    module_entries: HashMap<String, usize>,
+    // Compiled modules
+    imports: HashMap<String, Chunk>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -44,13 +43,13 @@ impl Chunk {
         Ok(())
     }
 
-    pub fn add_import(&mut self, import: SourceFile, name: String) -> CompileResult<()> {
+    pub fn add_import(&mut self, import: Chunk, name: String) -> CompileResult<()> {
         if self.imports.contains_key(&name) {
             panic!("module '{}' is already imported", &name);
         }
         let name_index = self.add_constant(name.clone().into())?;
         self.push_instr(Instruction::Import { name_index })?;
-        let _ = self.imports.insert(name, import);
+        self.imports.insert(name, import);
         Ok(())
     }
 
@@ -167,16 +166,12 @@ impl Chunk {
         self.constants.as_slice()
     }
 
-    pub fn take_imports(&mut self) -> HashMap<String, SourceFile> {
+    pub fn take_imports(&mut self) -> HashMap<String, Chunk> {
         std::mem::replace(&mut self.imports, HashMap::new())
     }
 
-    pub fn add_entry(&mut self, mod_name: String, pc: usize) {
-        self.module_entries.insert(mod_name, pc);
-    }
-
-    pub fn get_module_pc(&self, mod_name: &str) -> usize {
-        *self.module_entries.get(mod_name).expect("Module not found")
+    pub fn imports(&mut self) -> &mut HashMap<String, Chunk> {
+        &mut self.imports
     }
 }
 
@@ -187,7 +182,6 @@ impl Default for Chunk {
             constants: constant_names().collect(),
             prototypes: Vec::new(),
             imports: HashMap::new(),
-            module_entries: HashMap::new(),
         }
     }
 }

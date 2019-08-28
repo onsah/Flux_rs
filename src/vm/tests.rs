@@ -158,7 +158,7 @@ unit_test! {
             assert(foo == 3);
         end
     end
-    assert(foo == 1)
+    assert(foo == 1);
     ",
     Ok(Value::Unit)
 }
