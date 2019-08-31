@@ -3,7 +3,6 @@ use super::UpValueDesc;
 use super::{CompileError, CompileResult};
 use crate::vm::lib::constant_names;
 use crate::vm::{Value, FuncProtoRef};
-use crate::sourcefile::SourceFile;
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -12,7 +11,6 @@ pub struct Chunk {
     instructions: Vec<Instruction>,
     constants: Vec<Value>,
     prototypes: Vec<FuncProtoRef>,
-    // Compiled modules
     imports: HashMap<String, Chunk>,
 }
 

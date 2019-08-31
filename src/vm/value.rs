@@ -96,7 +96,7 @@ impl PartialEq for Value {
             (Embedded(a), Embedded(b)) => a == b,
             (Str(a), Embedded(b)) => a.as_str() == *b,
             (Embedded(a), Str(b)) => *a == b.as_str(),
-            (Table(a), Table(b)) => a == b,
+            (Table(a), Table(b)) => a.as_ptr() == b.as_ptr(),
             (Tuple(a), Tuple(b)) => a == b,
             (Function(a), Function(b)) => a == b,
             (Unit, Unit) => true,

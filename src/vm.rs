@@ -195,7 +195,13 @@ impl Vm {
                 Instruction::Import { name_index } => { self.import(name_index as usize)? },
                 Instruction::ExitBlock { pop, return_value } => {
                     let return_value = if return_value {
-                        Some(self.pop_stack()?)
+                        let mut value = self.pop_stack()?;
+                        if let Value::Function(function) = &mut value {
+                            if let Function::User(func) = function {
+                                self.close_upvalues(func)?;
+                            }
+                        }
+                        Some(value)
                     } else {
                         None
                     };
@@ -211,7 +217,8 @@ impl Vm {
             let f = self.current_frame_mut()?;
             f.pc += 1;
             self.print_call_stack();
-            self.print_stack()
+            self.print_stack();
+            // self.print_globals();
         }
     }
 
@@ -384,9 +391,6 @@ impl Vm {
 
     fn call_user_blocking(&mut self, function: UserFunction, pushed_args: u8) -> RuntimeResult<()> {
         self.call_user(function, pushed_args)?;
-        // If we don't have these lines we stuck in loop because jump instructions consider incrementing
-        /* let f = self.current_frame_mut()?;
-        f.pc += 1; */
         self.execute()
     }
 
@@ -576,6 +580,10 @@ impl Vm {
             debug!("{}", value)
         }
         debug!("**********STACK END**********");
+    }
+
+    fn print_globals(&self) {
+        println!("{:#?}", self.globals);
     }
 
     fn set_chunk(&mut self, chunk: Chunk) {

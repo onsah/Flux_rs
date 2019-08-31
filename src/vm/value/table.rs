@@ -59,6 +59,11 @@ impl Table {
             .iter()
             .chain(self.array.iter().map(|(v1, v2)| (v1, v2)))
     }
+
+    pub fn values(&self) -> impl Iterator<Item = &Value> {
+        self.array.iter().map(|(_, v)| v)
+            .chain(self.table.values())
+    }
 }
 
 impl Default for Table {

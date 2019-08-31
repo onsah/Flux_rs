@@ -34,7 +34,7 @@ impl Statement {
     pub fn can_convert_expr(&self) -> bool {
         match self {
             Statement::Expr(expr) => match expr {
-                Expr::If { .. } | Expr::Function { .. } => true,
+                Expr::If { .. } | Expr::Function { .. } | Expr::Block(..) => true,
                 _ => false,
             },
             Statement::If { else_block, .. } => else_block.is_some(),

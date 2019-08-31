@@ -31,7 +31,7 @@ pub struct Local {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(self) struct ClosureScope {
+struct ClosureScope {
     depth: u8,
     local_start: usize,
     upvalues: Vec<UpValueDesc>,
@@ -57,23 +57,6 @@ impl Compiler {
     ) -> CompileResult<Chunk> {
         let mut compiler = Self::new(metadata);
         compiler.compile_module(ast)?;
-        /* // Compile all imports
-        let imports = compiler.chunk.take_imports();
-        for (name, sf) in imports {
-            let SourceFile {
-                ast,
-                metadata
-            } = sf;
-            // Get start point
-            let mod_start_pc = compiler.chunk.instructions().len();
-            println!("mod {} starts at {}", name, mod_start_pc);
-            compiler.chunk.add_entry(name, mod_start_pc);
-            // Compile module
-            let metadata = std::mem::replace(&mut compiler.metadata, metadata);
-            compiler.compile_module(ast)?;
-            // This may not be neccessary because runtime doesn't need metadata
-            compiler.metadata = metadata;
-        } */
         Ok(compiler.chunk)
     }
 
@@ -141,12 +124,12 @@ impl Compiler {
         // TODO: pattern matching for tuple expressions
         match variable {
             Expr::Identifier(name) => {
-                let index = self.add_constant(name.clone().into(), true)?;
+                let index = self.add_constant(name.clone().into(), false)?;
                 self.compile_expr(value)?;
                 if let Some((index, frame)) = self.resolve_local(name.as_str()) {
-                    let index = index as u16;
-                    self.add_instr(Instruction::SetLocal { index, frame })
+                    self.add_instr(Instruction::SetLocal { index: index as u16, frame })
                 } else {
+                    // self.add_instr(Instruction::Constant { index })?;
                     self.add_instr(Instruction::SetGlobal { index })
                 }
             }
@@ -166,8 +149,7 @@ impl Compiler {
         for stmt in statements {
             self.compile_stmt(stmt)?;
         }
-        self.exit_scope(false)?;
-        Ok(())
+        self.exit_scope(false)
     }
 
     fn if_stmt(
@@ -210,7 +192,11 @@ impl Compiler {
 
     fn import_stmt(&mut self, path: Vec<String>, name: String) -> CompileResult<()> {
         // Get source file
-        let abs_path = absolute_path(self.metadata.current_dir(), path.as_slice());
+        let abs_path = if Self::is_std(&path) {
+            unimplemented!()
+        } else {
+            absolute_path(self.metadata.current_dir(), path.as_slice())
+        };
         let source = io::read_file(abs_path.clone())?;
         // Parse and store
         let ast = Parser::parse_str(source.as_str())?;
@@ -225,6 +211,11 @@ impl Compiler {
             })?;
         // Add import to table ad push instruction
         self.chunk.add_import(chunk, name)
+    }
+
+    #[inline]
+    fn is_std(path: &[String]) -> bool {
+        &path[0] == "std"
     }
 
     fn compile_expr(&mut self, expr: Expr) -> CompileResult<()> {
@@ -288,24 +279,16 @@ impl Compiler {
                 // Idea: add upvalue too all closures until to the function that variable has defined
                 // Each upvalue can reference at most one scope higher
                 let skip = self.closure_scopes.len() - frame as usize;
-                let mut closure_iter = self.closure_scopes.iter_mut().skip(skip);
-                {
-                    let closure = closure_iter.next().unwrap();
+                let closure_iter = self.closure_scopes.iter_mut().skip(skip);
+                for (i, closure) in closure_iter.enumerate() {
                     closure.upvalues.push(UpValueDesc {
                         index,
-                        is_this: true,
-                    });
-                    index = closure.upvalues.len() as u16 - 1;
-                }
-                for closure in closure_iter {
-                    closure.upvalues.push(UpValueDesc {
-                        index,
-                        is_this: false,
+                        is_this: i == 0,    // This means its on its own stack frame
                     });
                     index = closure.upvalues.len() as u16 - 1;
                 }
                 let upval_index = {
-                    let closure = self.closure_scopes.last_mut().unwrap();
+                    let closure = self.closure_scopes.last_mut().expect("closure scope expected");
                     closure.upvalues.len() as u16 - 1
                 };
                 self.add_instr(Instruction::GetUpval { index: upval_index })
@@ -558,6 +541,7 @@ impl Compiler {
  */
 impl Compiler {
     // TODO: Write tests for local scoping
+    // Returns the stack index and the frame index
     pub fn resolve_local(&self, name: &str) -> Option<(usize, u8)> {
         self.locals.iter().enumerate().rev().find_map(|(i, l)| {
             if l.name == name {

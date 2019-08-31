@@ -1,10 +1,16 @@
+mod array;
+
 use super::value::{ArgsLen, Function, NativeFunction, Table};
 use super::{Integer, Value};
 use crate::vm::{RuntimeError, Vm};
 use std::io::{self, Write};
 use std::rc::Rc;
 
-pub const PREDEFINED_CONSTANTS: [(&str, Value); 7] = [
+pub const LIBS: [(&'static str, &'static str); 1] = [
+    (array::SOURCE, "array")
+];
+
+pub const PREDEFINED_CONSTANTS: [(&str, Value); 8] = [
     ("print", PRINT),
     ("println", PRINTLN),
     ("readline", READLINE),
@@ -12,6 +18,7 @@ pub const PREDEFINED_CONSTANTS: [(&str, Value); 7] = [
     ("number", NUMBER),
     ("assert", ASSERT),
     ("new", NEW),
+    ("for_each", FOR_EACH)
 ];
 
 #[inline]
@@ -87,12 +94,12 @@ define_native! {
                 let trimmed = string.trim();
                 match trimmed.parse::<Integer>() {
                     Ok(i) => Ok(Value::Int(i)),
-                    Err(_) => Err(RuntimeError::InvalidFormat),
+                    Err(_) => Ok(Value::Nil),
                 }
             },
             Value::Int(i) => Ok(Value::Int(*i)),
             Value::Number(i) => Ok(Value::Int(i.round() as Integer)),
-            _ => Err(RuntimeError::TypeError),
+            _ => Ok(Value::Nil),
         }
     },
     ArgsLen::Exact(1)
@@ -112,12 +119,12 @@ define_native! {
                 let trimmed = string.trim();
                 match trimmed.parse::<f64>() {
                     Ok(i) => Ok(Value::Number(i)),
-                    Err(_) => Err(RuntimeError::InvalidFormat),
+                    Err(_) => Ok(Value::Nil),
                 }
             },
             Value::Int(i) => Ok(Value::Int(*i)),
             Value::Number(i) => Ok(Value::Number(*i)),
-            _ => Err(RuntimeError::TypeError),
+            _ => Ok(Value::Nil),
         }
     },
     ArgsLen::Exact(1)
@@ -159,4 +166,31 @@ define_native! {
         Ok(table.into())
     },
     ArgsLen::Variadic
+}
+
+// TODO: unit test
+define_native! {
+    FOR_EACH,
+    |vm, args| {
+        let func = args.get(0)
+            .expect("Expected a function")
+            .clone()
+            .into_user_fn().expect("Expected a function");
+        // Check function args to be 1
+        let table = args.get(1).expect("Expected a table");
+        match table {
+            Value::Table(table) => {
+                for v in table.borrow().values() {
+                    let pushed_args = 1;
+                    vm.stack.push(v.clone());
+                    // Cloning on every iteration!
+                    vm.call_user_blocking(func.clone(), pushed_args)?;
+                    vm.pop_stack()?;
+                }
+                Ok(Value::Unit)
+            },
+            _ => Err(RuntimeError::TypeError),
+        }
+    },
+    ArgsLen::Exact(2)
 }

@@ -57,11 +57,6 @@ where
             self.let_stmt()
         } else if self.match_token(TokenType::If).is_ok() {
             self.if_stmt()
-        } else if self.match_token(TokenType::Do).is_ok() {
-            // Should be block expr
-            let stmt = Statement::Block(self.block_stmt()?);
-            self.match_token(TokenType::End)?;
-            Ok(stmt)
         } else if self.match_token(TokenType::While).is_ok() {
             self.while_stmt()
         } else if self.match_token(TokenType::Return).is_ok() {
@@ -77,7 +72,10 @@ where
             } else if self.match_token(TokenType::Semicolon).is_ok() {
                 Ok(Statement::Expr(expr))
             } else {
-                Err(self.make_error(ParserErrorKind::UnexpectedExpr(expr))?)
+                match expr {
+                    Expr::Block(..) => Ok(Statement::Expr(expr)),
+                    _ => Err(self.make_error(ParserErrorKind::UnexpectedExpr(expr))?),
+                }
             }
         }
     }

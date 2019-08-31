@@ -265,6 +265,24 @@ unit_test! {
     Ok(Value::Int(0))
 }
 
+unit_test! {
+    set_upvalue,
+    "
+    let foo = (fn()
+        let i = 0;
+        let bar = fn()
+            i = i + 1;
+            i
+        end;
+        bar();
+        bar
+    end)();
+    foo();
+    foo()
+    ",
+    Ok(Value::Int(3))
+}
+
 #[test]
 fn import() {
     use std::path::PathBuf;
