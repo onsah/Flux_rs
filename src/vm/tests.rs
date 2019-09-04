@@ -319,6 +319,29 @@ unit_test! {
     Ok(Value::Int(3))
 }
 
+unit_test! {
+    for_loop,
+    "
+    let range = fn(n)
+        let i = 0; 
+        fn()
+            if i < n then
+                i = i + 1;
+                i
+            else
+                nil
+            end
+        end
+    end;
+    let i = 1;
+    for j in range(10) do
+        i = i * 2;
+    end
+    i
+    ",
+    Ok(Value::Int(1024))
+}
+
 #[test]
 fn import() {
     use std::path::PathBuf;

@@ -59,6 +59,8 @@ where
             self.if_stmt()
         } else if self.match_token(TokenType::While).is_ok() {
             self.while_stmt()
+        } else if self.match_token(TokenType::For).is_ok() {
+            self.for_stmt()
         } else if self.match_token(TokenType::Return).is_ok() {
             self.return_stmt()
         } else if self.match_token(TokenType::Fn).is_ok() {
@@ -147,6 +149,49 @@ where
             condition,
             then_block: Box::new(then_block),
         })
+    }
+
+    const ITERATOR_NAME: &'static str = "__iter__";
+
+    // Desugar for to a while inside a block
+    fn for_stmt(&mut self) -> Result<Statement> {
+        let variable = self.match_token(TokenType::Identifier)?;
+        self.match_token(TokenType::In)?;
+        let iter = self.expression()?;
+        
+        // body
+        self.match_token(TokenType::Do)?;
+
+        let mut for_block = self.block_stmt()?;
+        for_block.push(Statement::Set {
+            variable: Expr::Identifier(variable.text().to_string()),
+            value: Expr::Call {
+                func: Box::new(Expr::Identifier(Self::ITERATOR_NAME.to_string())),
+                args: vec![]
+            }
+        });
+        self.match_token(TokenType::End)?;
+        Ok(Statement::Block(vec![
+            Statement::Let {
+                name: Self::ITERATOR_NAME.to_string(),
+                value: iter.clone(),
+            },
+            Statement::Let {
+                name: variable.text().to_string(),
+                value: Expr::Call {
+                    func: Box::new(Expr::Identifier(Self::ITERATOR_NAME.to_string())),
+                    args: vec![]
+                }
+            },
+            Statement::While {
+                condition: Expr::Binary {
+                    left: Box::new(Expr::Identifier(variable.text().to_string())),
+                    op: BinaryOp::BangEqual,
+                    right: Box::new(Expr::nil()),
+                },
+                then_block: Box::new(Statement::Block(for_block))
+            }
+        ]))
     }
 
     #[allow(dead_code)]

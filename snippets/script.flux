@@ -10,9 +10,15 @@ let range = fn(n)
     end
 end;
 
-let iter = range(10);
-let value = iter();
-while value != nil then
-    println(value);
-    value = iter();
+let iter = fn(table)
+    let i = 0;
+    fn()
+        let value = table[i];
+        i = i + 1;
+        value
+    end
+end;
+
+for i in iter({"hello", "this", "is", "an", "iterator"}) do
+    println(i);
 end
