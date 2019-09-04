@@ -67,6 +67,24 @@ o:getX() // 5
 ```
 
 ## Example programs
+### Iterators using generators
+```
+let gen = fn(n)
+    let i = 0;
+    fn()
+        if i < n then
+            i = i + 1;
+            i
+        else
+            nil
+        end
+    end
+end;
+let iter = gen();
+println(iter());     // 1
+println(iter());     // 2
+println(iter());     // 3
+```
 ### Argument binding via closures
 ```
 let bind = fn(f, arg) 

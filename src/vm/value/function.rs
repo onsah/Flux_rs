@@ -19,7 +19,6 @@ pub struct UserFunction {
     args_len: u8,
     // What about holding a rc?
     proto: FuncProtoRef,
-    upvalues: Vec<UpValue>,
     this: Option<Rc<RefCell<Table>>>,
 }
 
@@ -27,8 +26,6 @@ pub struct UserFunction {
 pub enum UpValue {
     Open { index: u16 },
     Closed(Value),
-    // Upvalue in the stack of itself
-    This { index: u16 },
 }
 
 type NativeFn = fn(&mut Vm, Vec<Value>) -> RuntimeResult<Value>;
@@ -71,18 +68,6 @@ impl UserFunction {
     pub fn new(proto: FuncProtoRef) -> Self {
         UserFunction {
             args_len: proto.args_len,
-            // TODO: Impl Into<UpValue> for UpValueDesc
-            upvalues: proto
-                .upvalues
-                .iter()
-                .map(|ud| {
-                    if ud.is_this {
-                        UpValue::This { index: ud.index }
-                    } else {
-                        UpValue::Open { index: ud.index }
-                    }
-                })
-                .collect(),
             proto,
             this: None,
         }
@@ -101,16 +86,12 @@ impl UserFunction {
         }
     }
 
-    pub fn upvalues(&self) -> &[UpValue] {
-        self.upvalues.as_slice()
+    pub fn upvalues(&self) -> &[(usize, Rc<RefCell<UpValue>>)] {
+        self.proto.upvalues.as_slice()
     }
 
-    pub fn upvalues_mut(&mut self) -> &mut [UpValue] {
-        self.upvalues.as_mut_slice()
-    }
-
-    pub fn extract_upvalues(self) -> Vec<UpValue> {
-        self.upvalues
+    pub fn extract_upvalues(self) -> Vec<(usize, Rc<RefCell<UpValue>>)> {
+        self.proto.upvalues.clone()
     }
 
     pub fn proto(&self) -> FuncProtoRef {
@@ -121,17 +102,9 @@ impl UserFunction {
         self.this.is_some()
     }
 
-    pub fn push_upvalue(&mut self, index: u16) -> Option<u8> {
-        if (self.upvalues.len() as u8) < Self::MAX_UPVALUES {
-            self.upvalues.push(UpValue::Open { index });
-            Some((self.upvalues.len() - 1) as u8)
-        } else {
-            None
-        }
-    }
-
-    pub fn close_upvalue(&mut self, index: usize, value: Value) {
-        self.upvalues[index] = UpValue::Closed(value);
+    pub fn close_upvalue(&self, index: usize, value: Value) {
+        let upvalue: &mut UpValue = &mut self.upvalues()[index].1.borrow_mut();
+        *upvalue = UpValue::Closed(value);
     }
 
     pub fn take_this(&mut self) -> Option<Rc<RefCell<Table>>> {
@@ -143,7 +116,7 @@ impl UpValue {
     pub fn is_closed(&self) -> bool {
         use UpValue::*;
         match self {
-            Open { .. } | This { .. } => false,
+            Open { .. } => false,
             Closed(_) => true,
         }
     }

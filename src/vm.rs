@@ -15,6 +15,8 @@ use frame::Frame;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::convert::TryInto;
+use std::borrow::Borrow;
 
 pub type RuntimeResult<T> = Result<T, RuntimeError>;
 
@@ -71,17 +73,18 @@ impl Vm {
                 }
                 Instruction::Return { return_value } => {
                     // TODO: fn return
-                    let mut value = if return_value {
+                    let value = if return_value {
                         self.pop_stack()?
                     } else {
                         Value::Unit
                     };
                     // close_upvalues
-                    if let Value::Function(function) = &mut value {
+                    /* if let Value::Function(function) = &mut value {
                         if let Function::User(func) = function {
                             self.close_upvalues(func)?;
                         }
-                    }
+                    } */
+                    self.close_upvalues()?;
                     while self.stack.len() > self.current_frame()?.stack_top() {
                         self.pop_stack()?;
                     }
@@ -109,20 +112,12 @@ impl Vm {
                     self.globals.insert(name, value);
                 }
                 Instruction::GetLocal { index, frame } => {
-                    let frame_index = if frame != 0 {
-                        self.frames.len() - frame as usize
-                    } else {
-                        0
-                    };
+                    let frame_index = self.frame_from_offset(frame);
                     let index = self.frames[frame_index].stack_top() + index as usize;
                     self.stack.push(self.stack[index as usize].clone());
                 }
                 Instruction::SetLocal { index, frame } => {
-                    let frame_index = if frame != 0 {
-                        self.frames.len() - frame as usize
-                    } else {
-                        0
-                    };
+                    let frame_index = self.frame_from_offset(frame);
                     let index = self.frames[frame_index].stack_top() + index as usize;
                     if self.stack.len() != index as usize {
                         self.stack[index as usize] = self.pop_stack()?;
@@ -172,22 +167,38 @@ impl Vm {
                     }
                 }
                 Instruction::GetUpval { index } => {
-                    let mut upval_index = index;
-                    for frame in self.frames.iter().rev() {
-                        let upvalue = &frame.upvalues[upval_index as usize];
-                        match upvalue {
-                            UpValue::Open { index } => {
-                                upval_index = *index;
-                            }
-                            UpValue::This { index } => {
-                                let value_index = frame.stack_top + *index as usize;
-                                self.stack.push(self.stack[value_index].clone());
-                                break;
-                            }
-                            UpValue::Closed(value) => {
-                                self.stack.push(value.clone());
-                                break;
-                            }
+                    let frame = self.frames.last().unwrap();
+                    let (frame_offset, upvalue) = &frame.upvalues[index as usize];
+                    let upvalue: &UpValue = &upvalue.as_ref().borrow();
+                    match upvalue {
+                        &UpValue::Open { index } => {
+                            let frame_index = self.frame_from_offset((*frame_offset).try_into().unwrap());
+                            let frame = &self.frames[frame_index];
+                            let value_index = frame.stack_top + index as usize;
+                            self.stack.push(self.stack[value_index].clone());
+                        }
+                        UpValue::Closed(value) => {
+                            self.stack.push(value.clone());
+                        }
+                    }
+                }
+                // Almost same with GetUpval
+                Instruction::SetUpval { index } => {
+                    let new_value = self.pop_stack()?;
+                    let frame = self.frames.last_mut().unwrap();
+                    let (frame_offset, upvalue) = frame.upvalues[index as usize].clone();
+                    let upvalue: &mut UpValue = &mut upvalue.borrow_mut();
+                    match upvalue {
+                        &mut UpValue::Open { index } => {
+                            let frame_index = self.frame_from_offset(frame_offset.try_into().unwrap());
+                            let frame = &self.frames[frame_index];
+                            let value_index = frame.stack_top + index as usize;
+                            self.stack[value_index] = new_value;
+                            // self.stack.push(self.stack[value_index].clone());
+                        }
+                        UpValue::Closed(value) => {
+                            *value = new_value;
+                            // self.stack.push(value.clone());
                         }
                     }
                 }
@@ -195,12 +206,12 @@ impl Vm {
                 Instruction::Import { name_index } => { self.import(name_index as usize)? },
                 Instruction::ExitBlock { pop, return_value } => {
                     let return_value = if return_value {
-                        let mut value = self.pop_stack()?;
-                        if let Value::Function(function) = &mut value {
+                        let value = self.pop_stack()?;
+                        /* if let Value::Function(function) = &mut value {
                             if let Function::User(func) = function {
                                 self.close_upvalues(func)?;
                             }
-                        }
+                        } */
                         Some(value)
                     } else {
                         None
@@ -222,22 +233,19 @@ impl Vm {
         }
     }
 
-    fn close_upvalues(&mut self, function: &mut UserFunction) -> RuntimeResult<()> {
+    fn close_upvalues(&mut self) -> RuntimeResult<()> {
         let frame = self.current_frame().expect("Expected a call frame in return");
         // Closure upvalues that will be dropped
-        for upval in function.upvalues_mut() {
-            if let UpValue::Open { index } = upval {
-                match &frame.upvalues[*index as usize] {
-                    UpValue::This { index } => {
-                        let index = frame.stack_top + *index as usize;
-                        let value = self.stack[index].clone();
-                        *upval = UpValue::Closed(value);
-                    }
-                    // Note: can unwrap be moved somehow since it will be dropped immediately
-                    UpValue::Closed(value) => {
-                        *upval = UpValue::Closed(value.clone());
-                    }
-                    _ => (),
+        for (frame_offset, upval) in &frame.upvalues {
+            let upval: &mut UpValue = &mut upval.borrow_mut();
+            if let &mut UpValue::Open { index } = upval {
+                // UpValue is in own stack
+                // Because top level frame is main
+                if *frame_offset == 0 {
+                    let frame = self.current_frame().expect("Expected a call frame in return");
+                    let value_index = frame.stack_top + index as usize;
+                    let value = self.stack[value_index].clone();
+                    *upval = UpValue::Closed(value);
                 }
             }
         }
@@ -380,6 +388,8 @@ impl Vm {
             let upvalues = function.extract_upvalues();
             self.frames
                 .push(Frame::new(0, proto, stack_top, upvalues));
+            self.print_call_stack();
+            self.print_stack();
             Ok(())
         } else {
             Err(RuntimeError::WrongNumberOfArgs {
@@ -588,6 +598,15 @@ impl Vm {
 
     fn set_chunk(&mut self, chunk: Chunk) {
         self.current_chunk = Some(chunk)
+    }
+
+    #[inline]
+    fn frame_from_offset(&self, frame: u8) -> usize {
+        if frame != 0 {
+            self.frames.len() - frame as usize
+        } else {
+            0
+        }
     }
 }
 

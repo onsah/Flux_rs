@@ -91,7 +91,9 @@ pub enum Instruction {
     GetUpval {
         index: u16,
     },
-    // SetUpval
+    SetUpval {
+        index: u16
+    },
     CloseUpval {
         index: u8,
     },

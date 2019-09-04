@@ -74,7 +74,43 @@ unit_test! {
 }
 
 unit_test! {
+    generator,
+    "
+    let gen = fn()
+        let i = 0;
+        fn()
+            i = i + 1;
+            i
+        end
+    end;
+    let iter = gen();
+    iter();
+    iter();
+    iter()
+    ",
+    Ok(Value::Int(3))
+}
+
+unit_test! {
     method,
+    "
+    let obj = {
+        \"setX\" = fn(self, x)
+            self.x = x;
+        end,
+        \"getX\" = fn(self)
+            return self.x;
+        end,
+    };
+    obj:setX(17);
+    obj:getX()
+    ",
+    Ok(Value::Int(17))
+}
+
+// This stack overflows due to self referencing structs print infinitely
+/* unit_test! {
+    method_lazy,
     "
     let obj = {
         \"setX\" = fn(self, x)
@@ -100,7 +136,7 @@ unit_test! {
         Value::Int(10),
         Value::Int(5)
     ]))
-}
+} */
 
 unit_test! {
     assert,

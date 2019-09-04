@@ -1,4 +1,5 @@
 mod array;
+mod tests;
 
 use super::value::{ArgsLen, Function, NativeFunction, Table};
 use super::{Integer, Value};

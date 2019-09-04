@@ -4,8 +4,10 @@ mod instruction;
 mod io;
 
 use std::convert::TryInto;
+use std::rc::Rc;
+use std::cell::RefCell;
 use crate::parser::{Parser, Ast, BinaryOp, Expr, BlockExpr, Literal, Statement, UnaryOp};
-use crate::vm::{Value, Integer};
+use crate::vm::{Value, Integer, UpValue};
 use crate::sourcefile::{SourceFile, MetaData};
 pub use chunk::{Chunk, FuncProto, JumpCondition};
 pub use error::CompileError;
@@ -26,7 +28,7 @@ pub struct Compiler {
 pub struct Local {
     name: String,
     depth: u8,
-    // n means the function in compiler.closure_depths[n]
+    // n means the function in compiler.closure_scopes[n]
     closure: Option<u8>,
 }
 
@@ -34,7 +36,7 @@ pub struct Local {
 struct ClosureScope {
     depth: u8,
     local_start: usize,
-    upvalues: Vec<UpValueDesc>,
+    upvalues: Vec<(usize, Rc<RefCell<UpValue>>)>,   // (frame_offset, upvalue)
     instructions: Vec<Instruction>,
 }
 
@@ -127,7 +129,14 @@ impl Compiler {
                 let index = self.add_constant(name.clone().into(), false)?;
                 self.compile_expr(value)?;
                 if let Some((index, frame)) = self.resolve_local(name.as_str()) {
-                    self.add_instr(Instruction::SetLocal { index: index as u16, frame })
+                    let index = index as u16;
+                    if frame > 1 {
+                        // let skip = self.closure_scopes.len() - frame as usize;
+                        let upval_index = self.add_upvalue(frame as usize, index);
+                        self.add_instr(Instruction::SetUpval { index: upval_index })
+                    } else {
+                        self.add_instr(Instruction::SetLocal { index, frame })
+                    }
                 } else {
                     // self.add_instr(Instruction::Constant { index })?;
                     self.add_instr(Instruction::SetGlobal { index })
@@ -273,24 +282,13 @@ impl Compiler {
 
     fn ident(&mut self, name: String) -> CompileResult<()> {
         if let Some((index, frame)) = self.resolve_local(name.as_str()) {
-            let mut index = index as u16;
+            let index = index as u16;
             if frame > 1 {
                 // add upvalue to all enclosing
                 // Idea: add upvalue too all closures until to the function that variable has defined
                 // Each upvalue can reference at most one scope higher
-                let skip = self.closure_scopes.len() - frame as usize;
-                let closure_iter = self.closure_scopes.iter_mut().skip(skip);
-                for (i, closure) in closure_iter.enumerate() {
-                    closure.upvalues.push(UpValueDesc {
-                        index,
-                        is_this: i == 0,    // This means its on its own stack frame
-                    });
-                    index = closure.upvalues.len() as u16 - 1;
-                }
-                let upval_index = {
-                    let closure = self.closure_scopes.last_mut().expect("closure scope expected");
-                    closure.upvalues.len() as u16 - 1
-                };
+                // let skip = self.closure_scopes.len() - frame as usize;
+                let upval_index = self.add_upvalue(frame as usize, index);
                 self.add_instr(Instruction::GetUpval { index: upval_index })
             } else {
                 self.add_instr(Instruction::GetLocal { index, frame })
@@ -300,6 +298,36 @@ impl Compiler {
             self.add_instr(Instruction::GetGlobal { index })
             // TODO: make error if not repl
             // Err(CompileError::UndefinedVariable { name })
+        }
+    }
+
+    fn add_upvalue(&mut self, frame_offset: usize, index: u16) -> u16 {
+        // Find index of upvalue if it added before
+        let frame_index = self.closure_scopes.len() - frame_offset;
+        let has_upvalue = self.closure_scopes[frame_index].upvalues
+            .iter()
+            .find(|(_, uv)| {
+                let borrowed: &UpValue = &uv.as_ref().borrow();
+                borrowed == &UpValue::Open {
+                    index,
+                }
+            })
+            .map(|uv| uv.clone());
+        if let Some(mut upvalue) = has_upvalue {
+            upvalue.0 = frame_offset;
+            let upvalues = &mut self.closure_scopes.last_mut().unwrap().upvalues;
+            upvalues.push(upvalue);
+            (upvalues.len() - 1).try_into().unwrap()
+        } else {
+            let upvalue = 
+                (frame_offset, Rc::new(RefCell::new(UpValue::Open {
+                    index, 
+                })));
+            
+            self.closure_scopes[frame_index].upvalues.push((0, upvalue.1.clone()));
+            let upvalues = &mut self.closure_scopes.last_mut().unwrap().upvalues;
+            upvalues.push(upvalue);
+            (upvalues.len() - 1).try_into().unwrap()
         }
     }
 
