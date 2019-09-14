@@ -8,22 +8,25 @@ Design goals are:
 
 ## What is working?
 * recursion
-* closures
+* closures (partly working but it will be fixed soon)
 * tables
 * OOP
 * local scoping
 * block expressions
+* modules
 
 ## What is **not** working?
-* Modules (coming soon)
 * Nil checking at compile time
 * Pattern matching for multiple return values
 
 ## Roadmap
-* Module support
 * Simple pattern matching for tuple expressions
 * Nullable variables and static checking for nullable types
 * Optimization for tables used as arrays (Like lua)
+
+## How to run
+Download the source code from repository. You need cargo to be installed. Then execute the command in root directory of the project.
+`cargo run [file_path]`
 
 ## Features
 ### If expressions
