@@ -3,6 +3,8 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
+pub type TableRef = Rc<RefCell<Table>>;
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Table {
     table: HashMap<Value, Value>,

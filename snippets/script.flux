@@ -1,24 +1,40 @@
-let range = fn(n)
+let foo = fn()
     let i = 0;
     fn()
-        if i < n then
-            i = i + 1;
-            i
-        else
-            nil
-        end
-    end
-end;
-
-let iter = fn(table)
-    let i = 0;
-    fn()
-        let value = table[i];
         i = i + 1;
-        value
+        i
     end
 end;
 
-for i in iter({"hello", "this", "is", "an", "iterator"}) do
-    println(i);
+foo();
+
+/// Transpiles to
+
+let foo = fn()
+    let i = 0; 
+    
+    bind_env({  // bind_env is native function
+        "i" = i,
+    }, fn(env)
+        env.i = env.i + 1;
+        env.i
+    end)
+end;
+
+foo();  // checks if closure has env then push it as last argument
+
+//
+
+fn(x)
+    bind_env({
+        "x" = x,
+    }, 
+    fn(y, env)
+        bind_env({
+            "x" = env.x,
+            "y" = y
+        }, fn(env)
+            env.x + env.y
+        end)
+    end
 end

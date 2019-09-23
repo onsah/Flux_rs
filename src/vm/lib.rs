@@ -7,10 +7,6 @@ use crate::vm::{RuntimeError, Vm};
 use std::io::{self, Write};
 use std::rc::Rc;
 
-pub const LIBS: [(&'static str, &'static str); 1] = [
-    (array::SOURCE, "array")
-];
-
 pub const PREDEFINED_CONSTANTS: [(&str, Value); 8] = [
     ("print", PRINT),
     ("println", PRINTLN),

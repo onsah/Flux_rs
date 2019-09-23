@@ -9,14 +9,12 @@ use crate::compiler::{BinaryInstr, Chunk, Instruction, UnaryInstr};
 pub use lib::PREDEFINED_CONSTANTS;
 pub use error::RuntimeError;
 pub use value::{
-    ArgsLen, Float, Function, Integer, NativeFunction, Table, UpValue, UserFunction, FuncProtoRef, Value,
+    ArgsLen, Float, Function, Integer, NativeFunction, Table, UserFunction, FuncProtoRef, Value,
 };
 use frame::Frame;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::convert::TryInto;
-use std::borrow::Borrow;
 
 pub type RuntimeResult<T> = Result<T, RuntimeError>;
 
@@ -72,19 +70,11 @@ impl Vm {
                     self.pop_stack()?;
                 }
                 Instruction::Return { return_value } => {
-                    // TODO: fn return
                     let value = if return_value {
                         self.pop_stack()?
                     } else {
                         Value::Unit
                     };
-                    // close_upvalues
-                    /* if let Value::Function(function) = &mut value {
-                        if let Function::User(func) = function {
-                            self.close_upvalues(func)?;
-                        }
-                    } */
-                    self.close_upvalues()?;
                     while self.stack.len() > self.current_frame()?.stack_top() {
                         self.pop_stack()?;
                     }
@@ -151,10 +141,17 @@ impl Vm {
                     let tuple = Value::Tuple(values.into_iter().rev().collect());
                     self.stack.push(tuple)
                 }
-                Instruction::FuncDef { proto_index } => {
+                Instruction::FuncDef { proto_index, has_env } => {
                     let proto = self.current_chunk().prototypes()[proto_index].clone();
+                    let function = 
+                        Value::Function(if has_env {
+                            let env = self.pop_stack()?.into_table().expect("Expected a table as env");
+                            Function::new_user_with_env(proto, env)
+                        } else {
+                            Function::new_user(proto)
+                        });
                     self.stack
-                        .push(Value::Function(Function::new_user(proto)))
+                        .push(function)
                 }
                 Instruction::Call { args_len } => {
                     let function = self.pop_stack()?;
@@ -166,52 +163,11 @@ impl Vm {
                         _ => return Err(RuntimeError::TypeError),
                     }
                 }
-                Instruction::GetUpval { index } => {
-                    let frame = self.frames.last().unwrap();
-                    let (frame_offset, upvalue) = &frame.upvalues[index as usize];
-                    let upvalue: &UpValue = &upvalue.as_ref().borrow();
-                    match upvalue {
-                        &UpValue::Open { index } => {
-                            let frame_index = self.frame_from_offset((*frame_offset).try_into().unwrap());
-                            let frame = &self.frames[frame_index];
-                            let value_index = frame.stack_top + index as usize;
-                            self.stack.push(self.stack[value_index].clone());
-                        }
-                        UpValue::Closed(value) => {
-                            self.stack.push(value.clone());
-                        }
-                    }
-                }
-                // Almost same with GetUpval
-                Instruction::SetUpval { index } => {
-                    let new_value = self.pop_stack()?;
-                    let frame = self.frames.last_mut().unwrap();
-                    let (frame_offset, upvalue) = frame.upvalues[index as usize].clone();
-                    let upvalue: &mut UpValue = &mut upvalue.borrow_mut();
-                    match upvalue {
-                        &mut UpValue::Open { index } => {
-                            let frame_index = self.frame_from_offset(frame_offset.try_into().unwrap());
-                            let frame = &self.frames[frame_index];
-                            let value_index = frame.stack_top + index as usize;
-                            self.stack[value_index] = new_value;
-                            // self.stack.push(self.stack[value_index].clone());
-                        }
-                        UpValue::Closed(value) => {
-                            *value = new_value;
-                            // self.stack.push(value.clone());
-                        }
-                    }
-                }
                 Instruction::Integer(value) => self.stack.push(value.into()),
                 Instruction::Import { name_index } => { self.import(name_index as usize)? },
                 Instruction::ExitBlock { pop, return_value } => {
                     let return_value = if return_value {
                         let value = self.pop_stack()?;
-                        /* if let Value::Function(function) = &mut value {
-                            if let Function::User(func) = function {
-                                self.close_upvalues(func)?;
-                            }
-                        } */
                         Some(value)
                     } else {
                         None
@@ -231,25 +187,6 @@ impl Vm {
             self.print_stack();
             // self.print_globals();
         }
-    }
-
-    fn close_upvalues(&mut self) -> RuntimeResult<()> {
-        let frame = self.current_frame().expect("Expected a call frame in return");
-        // Closure upvalues that will be dropped
-        for (frame_offset, upval) in &frame.upvalues {
-            let upval: &mut UpValue = &mut upval.borrow_mut();
-            if let &mut UpValue::Open { index } = upval {
-                // UpValue is in own stack
-                // Because top level frame is main
-                if *frame_offset == 0 {
-                    let frame = self.current_frame().expect("Expected a call frame in return");
-                    let value_index = frame.stack_top + index as usize;
-                    let value = self.stack[value_index].clone();
-                    *upval = UpValue::Closed(value);
-                }
-            }
-        }
-        Ok(())
     }
 
     fn import(&mut self, name_index: usize) -> RuntimeResult<()> {
@@ -383,11 +320,18 @@ impl Vm {
             let proto = function.proto();
             let stack_top = self.stack.len() - function.args_len() as usize;
             if let Some(this) = function.take_this() {
+                debug!("Function has this");
                 self.stack.push(this.into())
             }
-            let upvalues = function.extract_upvalues();
+            
+            // Push env if exists
+            if let Some(env) = function.take_env() {
+                self.stack.push(env.into())
+            }
+
+            // let upvalues = function.extract_upvalues();
             self.frames
-                .push(Frame::new(0, proto, stack_top, upvalues));
+                .push(Frame::new(0, proto, stack_top));
             self.print_call_stack();
             self.print_stack();
             Ok(())
@@ -579,7 +523,7 @@ impl Vm {
     fn print_call_stack(&self) {
         debug!("**********Call stack**********");
         for frame in &self.frames {
-            debug!("{:?}", frame);
+            debug!("{:#?}", frame);
         }
     }
 
@@ -592,6 +536,7 @@ impl Vm {
         debug!("**********STACK END**********");
     }
 
+    #[allow(dead_code)]
     fn print_globals(&self) {
         println!("{:#?}", self.globals);
     }
@@ -601,9 +546,9 @@ impl Vm {
     }
 
     #[inline]
-    fn frame_from_offset(&self, frame: u8) -> usize {
-        if frame != 0 {
-            self.frames.len() - frame as usize
+    fn frame_from_offset(&self, offset: u8) -> usize {
+        if offset != 0 {
+            self.frames.len() - offset as usize
         } else {
             0
         }

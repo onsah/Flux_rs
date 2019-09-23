@@ -5,8 +5,8 @@ use std::fmt::{self, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
-pub use function::{ArgsLen, Function, NativeFunction, UpValue, UserFunction, FuncProtoRef};
-pub use table::Table;
+pub use function::{ArgsLen, Function, NativeFunction, UserFunction, FuncProtoRef};
+pub use table::{Table, TableRef};
 
 mod function;
 mod table;
@@ -22,7 +22,7 @@ pub enum Value {
     Number(Float),
     Str(Rc<String>),
     Embedded(&'static str),
-    Table(Rc<RefCell<Table>>),
+    Table(TableRef),
     Tuple(Vec<Value>),
     Function(Function),
     Unit,
@@ -78,6 +78,13 @@ impl Value {
                 Function::User(f) => Ok(f),
                 _ => Err(RuntimeError::TypeError),
             },
+            _ => Err(RuntimeError::TypeError),
+        }
+    }
+
+    pub fn into_table(self) -> RuntimeResult<TableRef> {
+        match self {
+            Value::Table(table) => Ok(table),
             _ => Err(RuntimeError::TypeError),
         }
     }
@@ -199,8 +206,8 @@ impl From<Table> for Value {
     }
 }
 
-impl From<Rc<RefCell<Table>>> for Value {
-    fn from(table: Rc<RefCell<Table>>) -> Self {
+impl From<TableRef> for Value {
+    fn from(table: TableRef) -> Self {
         Value::Table(table)
     }
 }

@@ -4,10 +4,8 @@ mod instruction;
 mod io;
 
 use std::convert::TryInto;
-use std::rc::Rc;
-use std::cell::RefCell;
 use crate::parser::{Parser, Ast, BinaryOp, Expr, BlockExpr, Literal, Statement, UnaryOp};
-use crate::vm::{Value, Integer, UpValue};
+use crate::vm::{Value, Integer};
 use crate::sourcefile::{SourceFile, MetaData};
 pub use chunk::{Chunk, FuncProto, JumpCondition};
 pub use error::CompileError;
@@ -36,14 +34,7 @@ pub struct Local {
 struct ClosureScope {
     depth: u8,
     local_start: usize,
-    upvalues: Vec<(usize, Rc<RefCell<UpValue>>)>,   // (frame_offset, upvalue)
     instructions: Vec<Instruction>,
-}
-
-#[derive(Copy, Clone, Debug, PartialEq)]
-pub struct UpValueDesc {
-    pub index: u16,
-    pub is_this: bool,
 }
 
 /**
@@ -80,12 +71,20 @@ impl Compiler {
     }
 
     fn compile_ast(&mut self, ast: Ast) -> CompileResult<()> {
-        self.compile_expr(ast.get_expr())
+        self.enter_function();
+        
+        let body = ast.get_expr();
+        self.func_body(body)?;
+
+        let closure_scope = self.exit_function()?;
+        self.define_func(closure_scope, 0, false)?;
+        self.add_instr(Instruction::Call { args_len: 0 })
     }
 
     fn compile_stmt(&mut self, stmt: Statement) -> CompileResult<()> {
         match stmt {
             Statement::Expr(expr) => self.expr_stmt(expr),
+            Statement::Var { name, value } => self.var_stmt(name, value),
             Statement::Let { name, value } => self.let_stmt(name, value),
             Statement::Set { variable, value } => self.set_stmt(variable, value),
             Statement::Block(statements) => self.block_stmt(statements),
@@ -116,10 +115,24 @@ impl Compiler {
         Ok(())
     }
 
+    fn var_stmt(&mut self, name: String, expr: Expr) -> CompileResult<()> {
+        let index = self.add_constant(name.into(), false)?;
+        self.compile_expr(expr)?;
+        self.add_instr(Instruction::SetGlobal { index })
+    }
+
     fn let_stmt(&mut self, name: String, value: Expr) -> CompileResult<()> {
-        self.push_local(name);
-        self.compile_expr(value)?;
-        Ok(())
+        match value {
+            Expr::Function { .. } => {
+                self.push_local(name);
+                self.compile_expr(value)
+            },
+            _ => {
+                self.compile_expr(value)?;
+                self.push_local(name);
+                Ok(())
+            }
+        }
     }
 
     fn set_stmt(&mut self, variable: Expr, value: Expr) -> CompileResult<()> {
@@ -131,14 +144,12 @@ impl Compiler {
                 if let Some((index, frame)) = self.resolve_local(name.as_str()) {
                     let index = index as u16;
                     if frame > 1 {
-                        // let skip = self.closure_scopes.len() - frame as usize;
-                        let upval_index = self.add_upvalue(frame as usize, index);
-                        self.add_instr(Instruction::SetUpval { index: upval_index })
+                        // Since upvalues desugared by analyzer this should be impossible
+                        unreachable!()
                     } else {
                         self.add_instr(Instruction::SetLocal { index, frame })
                     }
                 } else {
-                    // self.add_instr(Instruction::Constant { index })?;
                     self.add_instr(Instruction::SetGlobal { index })
                 }
             }
@@ -238,9 +249,8 @@ impl Compiler {
             Expr::Tuple(exprs) => self.tuple(exprs),
             Expr::Access { table, field } => self.access(*table, *field),
             Expr::SelfAccess { table, method, args } => self.self_access(*table, method, args),
-            // Expr::Set { variable, value } => self.set(*variable, *value),
             Expr::TableInit { keys, values } => self.table_init(keys, values),
-            Expr::Function { args, body } => self.function_def(args, body),
+            Expr::Function { args, body, env } => self.function_def(args, body, env),
             Expr::Call { func, args } => self.call(*func, args),
             Expr::Block(BlockExpr { stmts, expr }) => self.block_expr(stmts, *expr),
             Expr::If {
@@ -284,12 +294,8 @@ impl Compiler {
         if let Some((index, frame)) = self.resolve_local(name.as_str()) {
             let index = index as u16;
             if frame > 1 {
-                // add upvalue to all enclosing
-                // Idea: add upvalue too all closures until to the function that variable has defined
-                // Each upvalue can reference at most one scope higher
-                // let skip = self.closure_scopes.len() - frame as usize;
-                let upval_index = self.add_upvalue(frame as usize, index);
-                self.add_instr(Instruction::GetUpval { index: upval_index })
+                // Since upvalues desugared by analyzer this should be impossible
+                unreachable!();
             } else {
                 self.add_instr(Instruction::GetLocal { index, frame })
             }
@@ -298,36 +304,6 @@ impl Compiler {
             self.add_instr(Instruction::GetGlobal { index })
             // TODO: make error if not repl
             // Err(CompileError::UndefinedVariable { name })
-        }
-    }
-
-    fn add_upvalue(&mut self, frame_offset: usize, index: u16) -> u16 {
-        // Find index of upvalue if it added before
-        let frame_index = self.closure_scopes.len() - frame_offset;
-        let has_upvalue = self.closure_scopes[frame_index].upvalues
-            .iter()
-            .find(|(_, uv)| {
-                let borrowed: &UpValue = &uv.as_ref().borrow();
-                borrowed == &UpValue::Open {
-                    index,
-                }
-            })
-            .map(|uv| uv.clone());
-        if let Some(mut upvalue) = has_upvalue {
-            upvalue.0 = frame_offset;
-            let upvalues = &mut self.closure_scopes.last_mut().unwrap().upvalues;
-            upvalues.push(upvalue);
-            (upvalues.len() - 1).try_into().unwrap()
-        } else {
-            let upvalue = 
-                (frame_offset, Rc::new(RefCell::new(UpValue::Open {
-                    index, 
-                })));
-            
-            self.closure_scopes[frame_index].upvalues.push((0, upvalue.1.clone()));
-            let upvalues = &mut self.closure_scopes.last_mut().unwrap().upvalues;
-            upvalues.push(upvalue);
-            (upvalues.len() - 1).try_into().unwrap()
         }
     }
 
@@ -421,25 +397,47 @@ impl Compiler {
         self.add_instr(Instruction::InitTable { len, has_keys })
     }
 
-    fn function_def(&mut self, args: Vec<String>, body: BlockExpr) -> CompileResult<()> {
+    // Compiles function definition
+    fn function_def(&mut self, args: Vec<String>, body: BlockExpr, env: Option<(Vec<Expr>, Vec<Expr>)>) -> CompileResult<()> {
+        // if env is some compile as table literal
+        // define function that has env
+        let has_env = 
+            if let Some((keys, values)) = env {
+                self.table_init(Some(keys), values)?;
+                true
+            } else {
+                false
+            };
+
         let args_len = args.len() as u8;
         self.enter_function();
         for arg in args {
             self.push_local(arg);
         }
+
+        self.func_body(body)?;
+
+        // Add new func proto
+        let closure_scope = self.exit_function()?;
+        self.define_func(closure_scope, args_len, has_env)
+    }
+
+    fn func_body(&mut self, body: BlockExpr) -> CompileResult<()> {
         for stmt in body.stmts {
             self.compile_stmt(stmt)?;
         }
         self.compile_expr(*body.expr)?;
         self.add_instr(Instruction::Return {
             return_value: true,
-        })?;
-        let closure_scope = self.exit_function()?;
-        // Add new func proto
-        let upvalues = closure_scope.upvalues;
-        let instructions = closure_scope.instructions;
-        let proto_index = self.chunk.push_proto(args_len, upvalues, instructions);
-        self.add_instr(Instruction::FuncDef { proto_index })
+        })
+    }
+
+    // Creates function prototype
+    fn define_func(&mut self, scope: ClosureScope, args_len: u8, has_env: bool) -> CompileResult<()> {
+        let instructions = scope.instructions;
+        let args_len = if has_env { args_len - 1 } else { args_len };
+        let proto_index = self.chunk.push_proto(args_len, instructions);
+        self.add_instr(Instruction::FuncDef { proto_index, has_env })
     }
 
     fn call(&mut self, func: Expr, args: Vec<Expr>) -> CompileResult<()> {
@@ -494,7 +492,6 @@ impl Compiler {
 
 impl Compiler {
     fn add_instr(&mut self, instruction: Instruction) -> CompileResult<()> {
-        // self.chunk.instructions_mut().push(instruction);
         self.instructions_mut().push(instruction);
         Ok(())
     }
@@ -569,7 +566,8 @@ impl Compiler {
  */
 impl Compiler {
     // TODO: Write tests for local scoping
-    // Returns the stack index and the frame index
+    // Returns the stack index and the frame offset
+    // TODO: a local is now always at the same frame
     pub fn resolve_local(&self, name: &str) -> Option<(usize, u8)> {
         self.locals.iter().enumerate().rev().find_map(|(i, l)| {
             if l.name == name {
@@ -603,7 +601,6 @@ impl Compiler {
         self.closure_scopes.push(ClosureScope {
             depth: self.depth,
             local_start: self.locals.len(),
-            upvalues: Vec::new(),
             instructions: Vec::new(),
         })
     }

@@ -1,6 +1,7 @@
 use super::{RuntimeError, Value, Vm};
 use crate::compiler::Compiler;
-use crate::parser::Parser;
+use crate::parser::{Parser, ParserError, ParserErrorKind};
+use crate::error::{FluxError, FluxResult};
 
 unit_test! {
     wrong_number_of_args,
@@ -8,10 +9,10 @@ unit_test! {
     let dummy = fn(a, b, c) end;
     dummy();
     ",
-    Err(RuntimeError::WrongNumberOfArgs {
+    Err(FluxError::Runtime(Box::new(RuntimeError::WrongNumberOfArgs {
         expected: 3,
         found: 0
-    })
+    })))
 }
 
 unit_test! {
@@ -51,7 +52,7 @@ unit_test! {
             fib(n - 1) + fib(n - 2)
         end
     end;
-    return fib(6);
+    fib(6)
     ",
     Ok(Value::Int(8))
 }
@@ -143,7 +144,7 @@ unit_test! {
     "
     assert(false);
     ",
-    Err(RuntimeError::AssertionFailed(Value::Bool(false)))
+    Err(FluxError::Runtime(Box::new(RuntimeError::AssertionFailed(Value::Bool(false)))))
 }
 
 unit_test! {
@@ -179,7 +180,7 @@ unit_test! {
     "
     let obj = new();
     ",
-    Err(RuntimeError::ExpectedArgsAtLeast(1))
+    Err(FluxError::Runtime(Box::new(RuntimeError::ExpectedArgsAtLeast(1))))
 }
 
 unit_test! {
@@ -290,13 +291,15 @@ unit_test! {
 unit_test! {
     block_closure,
     "
-    let foo = do
-        let i = 0;
-        fn()
-            i
-        end
-    end;
-    foo()
+    (fn() 
+        let foo = do
+            let i = 0;
+            fn()
+                i
+            end
+        end;
+        foo()
+    end)()
     ",
     Ok(Value::Int(0))
 }
@@ -340,6 +343,15 @@ unit_test! {
     i
     ",
     Ok(Value::Int(1024))
+}
+
+unit_test! {
+    global_variable,
+    "foo = 5;",
+    Err(FluxError::Parse(ParserError {
+        kind: ParserErrorKind::Undeclared { name: "foo".to_owned() },
+        line: 1,
+    }))
 }
 
 #[test]

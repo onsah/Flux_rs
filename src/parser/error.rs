@@ -6,8 +6,8 @@ use std::fmt::{Display, Formatter};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ParserError {
-    pub(super) kind: ParserErrorKind,
-    pub(super) line: usize
+    pub kind: ParserErrorKind,
+    pub line: usize
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -19,7 +19,10 @@ pub enum ParserErrorKind {
     // Ex: let t = { 3, foo = 5 }
     InitError,
     UnexpectedExpr(Expr),
-    Lex(LexErrorKind)
+    Lex(LexErrorKind),
+    ReservedIdentifier(String),
+    Redeclaration { name: String },
+    Undeclared { name: String },
 }
 
 impl Display for ParserError {

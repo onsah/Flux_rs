@@ -40,6 +40,15 @@ while x > 0 then
 end
 ```
 
+### Var
+`var [name] = [expression];`
+
+Var statements declare a global variable. Local variable can shadow a global variable in their lifetime. One should prefer let statements over var whenever possible. Var can be preferred when you want to export variable to other modules.
+```flux
+var foo = "bar";
+foo // "bar"
+```
+
 ### Let
 `let [name] = [expression];`
 
@@ -63,7 +72,7 @@ Export statements indicate which parts of the block will be exposed to the outsi
 
 File module.flux
 ```
-bar = fn() "bar" end;
+var bar = fn() "bar" end;
 ```
 
 other file 

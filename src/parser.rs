@@ -2,6 +2,7 @@ mod error;
 mod expr;
 mod lookahead;
 mod statement;
+mod analyzer;
 
 pub use super::scanner::{Token, TokenType};
 use crate::scanner::Scanner;
@@ -11,14 +12,14 @@ use lookahead::LookAhead;
 pub use statement::Statement;
 use std::ops::{Deref, DerefMut};
 
-type Result<'a, T> = std::result::Result<T, ParserError>;
+type Result<T> = std::result::Result<T, ParserError>;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Ast(BlockExpr);
 
 impl Ast {
-    pub fn get_expr(self) -> Expr {
-        Expr::Block(self.0)
+    pub fn get_expr(self) -> BlockExpr {
+        self.0
     }
 }
 
@@ -48,13 +49,17 @@ where
     I: Iterator<Item = Token>,
 {
     pub fn parse(&mut self) -> Result<Ast> {
+        use analyzer::Analyzer;
         let block = self.block_expr(TokenType::Eof)?;
-        Ok(Ast(block))
+        // Ok(Ast(block))
+        Analyzer::analyze(Ast(block), self)
     }
 
     pub fn statement(&mut self) -> Result<Statement> {
         if self.match_token(TokenType::Let).is_ok() {
             self.let_stmt()
+        } else if self.match_token(TokenType::Var).is_ok() {
+            self.var_stmt()
         } else if self.match_token(TokenType::If).is_ok() {
             self.if_stmt()
         } else if self.match_token(TokenType::While).is_ok() {
@@ -90,6 +95,19 @@ where
         self.match_token(TokenType::Semicolon)?;
         Ok(Statement::Let {
             name: name.to_string(),
+            value,
+        })
+    }
+
+    fn var_stmt(&mut self) -> Result<Statement> {
+        let name = self.match_token(TokenType::Identifier)?.text().to_string();
+
+        self.match_token(TokenType::Equal)?;
+        let value = self.expression()?;
+        // Maybe optional
+        self.match_token(TokenType::Semicolon)?;
+        Ok(Statement::Var {
+            name,
             value,
         })
     }
@@ -156,6 +174,9 @@ where
     // Desugar for to a while inside a block
     fn for_stmt(&mut self) -> Result<Statement> {
         let variable = self.match_token(TokenType::Identifier)?;
+        if variable.text() == Self::ITERATOR_NAME {
+            return Err(self.make_error(ParserErrorKind::ReservedIdentifier(Self::ITERATOR_NAME.to_string()))?)
+        }
         self.match_token(TokenType::In)?;
         let iter = self.expression()?;
         
@@ -504,7 +525,7 @@ where
             self.match_token(TokenType::RightParen)?;
         }
         let body = self.block_expr(TokenType::End)?;
-        Ok(Expr::Function { args, body })
+        Ok(Expr::Function { args, body, env: None })
     }
 
     fn block_expr(&mut self, terminating_token: TokenType) -> Result<BlockExpr> {
@@ -779,7 +800,8 @@ mod tests {
                     body: BlockExpr {
                         stmts: vec![],
                         expr: Box::new(Expr::Literal(Literal::Unit))
-                    }
+                    },
+                    env: None
                 }
             }
         )

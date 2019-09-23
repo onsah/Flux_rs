@@ -70,15 +70,21 @@ fn repl() -> Result<(), error::FluxError> {
         let mut parser = Parser::new(&line)?;
         let ast = parser.parse()?;
         debug!("{:?}", &ast);
-        let chunk = Compiler::compile(SourceFile {
+        match Compiler::compile(SourceFile {
             ast, 
             metadata: MetaData::default()
-        })?;
-        debug!("{:?}", &chunk);
-        match vm.run(chunk) {
-            Ok(_) => (),
-            Err(error) => println!("{:?}", error),
-        }
+        }) {
+            Ok(chunk) => {
+                debug!("{:?}", &chunk);
+                match vm.run(chunk) {
+                    Ok(value) => println!("{}", value),
+                    Err(error) => println!("{:?}", error),
+                }
+            },
+            Err(err) => {
+                println!("{:?}", err);
+            }
+        };
         line.clear();
     }
 }

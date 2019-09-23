@@ -83,7 +83,9 @@ pub enum Instruction {
     Placeholder,
     Print,
     FuncDef {
+        // TODO: make u32
         proto_index: usize,
+        has_env: bool,
     },
     Call {
         args_len: u8,

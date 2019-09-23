@@ -32,6 +32,8 @@ pub enum Expr {
     Function {
         args: Vec<String>,
         body: BlockExpr,
+        /** (keys, values) */
+        env: Option<(Vec<Expr>, Vec<Expr>)>,
     },
     Call {
         func: Box<Expr>,

@@ -1,11 +1,9 @@
 use super::Instruction;
-use super::UpValueDesc;
 use super::{CompileError, CompileResult};
 use crate::vm::lib::constant_names;
-use crate::vm::{Value, FuncProtoRef, UpValue};
+use crate::vm::{Value, FuncProtoRef};
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::cell::RefCell;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Chunk {
@@ -18,7 +16,6 @@ pub struct Chunk {
 #[derive(Clone, Debug, PartialEq)]
 pub struct FuncProto {
     pub args_len: u8,
-    pub upvalues: Vec<(usize, Rc<RefCell<UpValue>>)>,
     pub instructions: Box<[Instruction]>,
 }
 
@@ -138,12 +135,10 @@ impl Chunk {
     pub fn push_proto(
         &mut self,
         args_len: u8,
-        upvalues: Vec<(usize, Rc<RefCell<UpValue>>)>,
         instructions: Vec<Instruction>,
     ) -> usize {
         self.prototypes.push(Rc::new(FuncProto {
             args_len,
-            upvalues,
             instructions: instructions.into_boxed_slice(),
         }));
         self.prototypes.len() - 1

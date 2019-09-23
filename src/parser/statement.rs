@@ -7,6 +7,11 @@ pub enum Statement {
         name: String, // TODO: pattern matching with tuples
         value: Expr,
     },
+    // Declaration
+    Var {
+        name: String,
+        value: Expr,
+    },
     // Set declaration
     Set {
         variable: Expr,

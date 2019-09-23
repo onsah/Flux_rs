@@ -1,10 +1,10 @@
-use super::{Table, Value};
+use super::{Table, TableRef, Value};
 use crate::compiler::FuncProto;
 use crate::vm::{RuntimeResult, Vm};
-use std::cell::RefCell;
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
+use std::cell::RefCell;
 
 #[derive(Clone, Debug, Hash, PartialEq)]
 pub enum Function {
@@ -17,15 +17,9 @@ pub type FuncProtoRef = Rc<FuncProto>;
 #[derive(Clone, Debug)]
 pub struct UserFunction {
     args_len: u8,
-    // What about holding a rc?
     proto: FuncProtoRef,
-    this: Option<Rc<RefCell<Table>>>,
-}
-
-#[derive(Clone, Debug, Hash, PartialEq)]
-pub enum UpValue {
-    Open { index: u16 },
-    Closed(Value),
+    env: Option<TableRef>,
+    this: Option<TableRef>,
 }
 
 type NativeFn = fn(&mut Vm, Vec<Value>) -> RuntimeResult<Value>;
@@ -47,6 +41,10 @@ impl Function {
         Function::User(UserFunction::new(proto))
     }
 
+    pub fn new_user_with_env(proto: FuncProtoRef, env: TableRef) -> Self {
+        Function::User(UserFunction::new(proto).with_env(env))
+    }
+
     pub fn args_len(&self) -> ArgsLen {
         match self {
             Function::User(func) => ArgsLen::Exact(func.args_len()),
@@ -63,17 +61,21 @@ impl Function {
 }
 
 impl UserFunction {
-    pub const MAX_UPVALUES: u8 = std::u8::MAX;
-
     pub fn new(proto: FuncProtoRef) -> Self {
         UserFunction {
             args_len: proto.args_len,
             proto,
             this: None,
+            env: None,
         }
     }
 
-    pub fn with_this(mut self, table: Rc<RefCell<Table>>) -> Self {
+    pub fn with_env(mut self, env: TableRef) -> Self {
+        self.env = Some(env);
+        self
+    }
+
+    pub fn with_this(mut self, table: TableRef) -> Self {
         self.this = Some(table);
         self
     }
@@ -86,14 +88,6 @@ impl UserFunction {
         }
     }
 
-    pub fn upvalues(&self) -> &[(usize, Rc<RefCell<UpValue>>)] {
-        self.proto.upvalues.as_slice()
-    }
-
-    pub fn extract_upvalues(self) -> Vec<(usize, Rc<RefCell<UpValue>>)> {
-        self.proto.upvalues.clone()
-    }
-
     pub fn proto(&self) -> FuncProtoRef {
         self.proto.clone()
     }
@@ -102,23 +96,12 @@ impl UserFunction {
         self.this.is_some()
     }
 
-    pub fn close_upvalue(&self, index: usize, value: Value) {
-        let upvalue: &mut UpValue = &mut self.upvalues()[index].1.borrow_mut();
-        *upvalue = UpValue::Closed(value);
-    }
-
-    pub fn take_this(&mut self) -> Option<Rc<RefCell<Table>>> {
+    pub fn take_this(&mut self) -> Option<TableRef> {
         self.this.take()
     }
-}
 
-impl UpValue {
-    pub fn is_closed(&self) -> bool {
-        use UpValue::*;
-        match self {
-            Open { .. } => false,
-            Closed(_) => true,
-        }
+    pub fn take_env(&mut self) -> Option<TableRef> {
+        self.env.take()
     }
 }
 
