@@ -119,3 +119,5 @@ print("enter a number: ");
 let i = number(readline());
 fib(i)
 ```
+
+more examples are at examples folder

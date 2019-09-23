@@ -172,6 +172,7 @@ impl Display for Value {
                 let s: &String = s.borrow();
                 write!(f, "{}", s)
             }
+            // Fix formatting
             Value::Table(t) => {
                 let table = t.as_ref().borrow();
                 writeln!(f, "{{")?;

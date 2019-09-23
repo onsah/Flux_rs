@@ -29,3 +29,8 @@ ll:push({"value" = 5});
 for i in ll:iter() do
     println(i);
 end
+// 5
+// 4
+// 3
+// 2
+// 1

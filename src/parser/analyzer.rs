@@ -132,34 +132,35 @@ where
         use Expr::*;
         match expr {
             Identifier(name) => {
-                let is_global = self.globals.contains(name);
-                if !is_global {
-                    // TODO: seems like not the best way to do it
-                    let mut is_local_somewhere = false;
-                    // Add to the env until find local
-                    for env in self.scopes.iter_mut()
-                        .rev()
-                        .take_while(|s| {
-                            is_local_somewhere = s.locals.contains(name);
-                            !is_local_somewhere
-                        })
-                        .filter_map(|s| s.environment.as_mut())
-                    {
-                        env.insert(name.to_string());
-                    }
-                    if is_local_somewhere {
-                        if !self.has_local(name) {
-                            *expr = Expr::Access {
-                                table: Box::new(Expr::Identifier("env".to_owned())),
-                                field: Box::new(Expr::string(name.to_owned()))
-                            }
+                // TODO: seems like not the best way to do it
+                let mut is_local_somewhere = false;
+                // Add to the env until find local
+                for env in self.scopes.iter_mut()
+                    .rev()
+                    .take_while(|s| {
+                        is_local_somewhere = s.locals.contains(name);
+                        !is_local_somewhere
+                    })
+                    .filter_map(|s| s.environment.as_mut())
+                {
+                    env.insert(name.to_string());
+                }
+
+                if is_local_somewhere {
+                    if !self.has_local(name) {
+                        *expr = Expr::Access {
+                            table: Box::new(Expr::Identifier("env".to_owned())),
+                            field: Box::new(Expr::string(name.to_owned()))
                         }
-                        Ok(())
-                    } else {
-                        Err(self.parser.make_error(ParserErrorKind::Undeclared { name: name.to_string() })?)
                     }
-                } else {
                     Ok(())
+                } else {
+                    let is_global = self.globals.contains(name);
+                    if !is_global {
+                        Err(self.parser.make_error(ParserErrorKind::Undeclared { name: name.to_string() })?)
+                    } else {
+                        Ok(())
+                    }
                 }
             }
             Unary { expr, .. } => self.visit_expr(expr.as_mut()),
