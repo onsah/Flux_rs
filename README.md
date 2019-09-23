@@ -7,20 +7,20 @@ Design goals are:
 * Simple OOP support
 
 ## What is working?
-* recursion
 * closures
 * tables
+* modules (simple)
 * OOP
 * local scoping
 * block expressions
 
 ## What is **not** working?
-* Modules (coming soon)
-* Nil checking at compile time
-* Pattern matching for multiple return values
+* recursion (will be fixed soon)
+* nil checking at compile time
+* pattern matching for multiple return values
 
 ## Roadmap
-* Module support
+* Fix recursion
 * Simple pattern matching for tuple expressions
 * Nullable variables and static checking for nullable types
 * Optimization for tables used as arrays (Like lua)
