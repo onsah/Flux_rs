@@ -319,6 +319,8 @@ impl Vm {
         if pushed_args == function.args_len() {
             let proto = function.proto();
             let stack_top = self.stack.len() - function.args_len() as usize;
+            
+            // I think this is useless now
             if let Some(this) = function.take_this() {
                 debug!("Function has this");
                 self.stack.push(this.into())

@@ -88,9 +88,13 @@ where
                 }
             }
             Statement::Var { name, value } => {
-                self.visit_expr(value)?;
-                self.globals.insert(name.to_string());
-                Ok(())
+                if self.is_top_level() {
+                    self.visit_expr(value)?;
+                    self.globals.insert(name.to_string());
+                    Ok(())
+                } else {
+                    Err(self.parser.make_error(ParserErrorKind::InnerVarDeclaration { name: name.to_string() })?)
+                }
             }
             Statement::Set { variable, value } => {
                 self.visit_expr(variable)?;
@@ -272,6 +276,11 @@ where
     fn exit_env(&mut self) -> Option<HashSet<String>> {
         self.scopes.pop().and_then(|s| s.environment)
     }
+
+    #[inline]
+    fn is_top_level(&self) -> bool {
+        self.scopes.len() == 1
+    }
 }
 
 #[cfg(test)]
@@ -327,7 +336,18 @@ mod tests {
         ";
         let mut parser = Parser::new(source).unwrap();
         let ast = parser.parse().unwrap();
-        let desugared = Analyzer::analyze(ast, &parser).unwrap();
-        println!("{:#?}", desugared);
+        println!("{:#?}", ast);
+    }
+
+    #[test]
+    fn inner_var_declaration_is_forbidden() {
+        let source = "
+        fn()
+            var a = nil;
+        end
+        ";
+        let parse_result = Parser::parse_str(source);
+        assert_eq!(parse_result.unwrap_err().kind, 
+            ParserErrorKind::InnerVarDeclaration { name: "a".to_string() })
     }
 }

@@ -1,10 +1,9 @@
-use super::{Table, TableRef, Value};
+use super::{TableRef, Value};
 use crate::compiler::FuncProto;
 use crate::vm::{RuntimeResult, Vm};
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
-use std::cell::RefCell;
 
 #[derive(Clone, Debug, Hash, PartialEq)]
 pub enum Function {

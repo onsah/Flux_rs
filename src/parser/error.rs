@@ -23,6 +23,8 @@ pub enum ParserErrorKind {
     ReservedIdentifier(String),
     Redeclaration { name: String },
     Undeclared { name: String },
+    // var declaration is only allowed at top level
+    InnerVarDeclaration { name: String },
 }
 
 impl Display for ParserError {
