@@ -18,7 +18,6 @@ pub struct UserFunction {
     args_len: u8,
     proto: FuncProtoRef,
     env: Option<TableRef>,
-    this: Option<TableRef>,
 }
 
 type NativeFn = fn(&mut Vm, Vec<Value>) -> RuntimeResult<Value>;
@@ -64,7 +63,6 @@ impl UserFunction {
         UserFunction {
             args_len: proto.args_len,
             proto,
-            this: None,
             env: None,
         }
     }
@@ -74,30 +72,21 @@ impl UserFunction {
         self
     }
 
-    pub fn with_this(mut self, table: TableRef) -> Self {
-        self.this = Some(table);
-        self
-    }
-
     pub fn args_len(&self) -> u8 {
-        if self.is_method() {
-            self.args_len - 1
-        } else {
-            self.args_len
-        }
+        self.args_len
     }
 
     pub fn proto(&self) -> FuncProtoRef {
         self.proto.clone()
     }
 
-    pub fn is_method(&self) -> bool {
+    /* pub fn is_method(&self) -> bool {
         self.this.is_some()
     }
 
     pub fn take_this(&mut self) -> Option<TableRef> {
         self.this.take()
-    }
+    } */
 
     pub fn take_env(&mut self) -> Option<TableRef> {
         self.env.take()
