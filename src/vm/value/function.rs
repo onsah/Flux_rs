@@ -76,20 +76,16 @@ impl UserFunction {
         self.args_len
     }
 
-    pub fn proto(&self) -> FuncProtoRef {
-        self.proto.clone()
+    pub fn proto_ref(&self) -> &FuncProtoRef {
+        &self.proto
     }
-
-    /* pub fn is_method(&self) -> bool {
-        self.this.is_some()
-    }
-
-    pub fn take_this(&mut self) -> Option<TableRef> {
-        self.this.take()
-    } */
 
     pub fn take_env(&mut self) -> Option<TableRef> {
         self.env.take()
+    }
+
+    pub fn env(&self) -> Option<&TableRef> {
+        self.env.as_ref()
     }
 }
 

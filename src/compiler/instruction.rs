@@ -107,7 +107,9 @@ pub enum Instruction {
     ExitBlock { 
         pop: u16,
         return_value: bool,
-    }
+    },
+    // rercursive call
+    Rec
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -122,6 +124,7 @@ pub enum BinaryInstr {
     Le,
     Eq,
     Ne,
+    // Add modulus
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]

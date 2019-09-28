@@ -258,6 +258,7 @@ impl Compiler {
                 then_block,
                 else_block,
             } => self.if_expr(*condition, *then_block, *else_block),
+            Expr::Rec => self.add_instr(Instruction::Rec),
             _ => Err(CompileError::UnimplementedExpr(expr)),
         }
     }

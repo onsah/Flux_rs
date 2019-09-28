@@ -21,6 +21,7 @@ where
 }
 
 struct Scope {
+    name: Option<String>, // Function name for recursion
     locals: HashSet<String>,
     environment: Option<HashSet<String>>,
 }
@@ -29,18 +30,18 @@ const ENV_NAME: &str = "env";
 
 impl Scope {
     fn block() -> Self {
-        Scope { locals: HashSet::new(), environment: None }
+        Scope { name: None, locals: HashSet::new(), environment: None }
     } 
 
-    fn function() -> Self {
-        Scope { locals: HashSet::new(), environment: Some(HashSet::new()) }
+    fn function(name: Option<String>) -> Self {
+        Scope { name, locals: HashSet::new(), environment: Some(HashSet::new()) }
     }
 
     fn global() -> Self {
         let locals: HashSet<String> = PREDEFINED_CONSTANTS.iter()
             .map(|(name, _)| name.to_string())
             .collect();
-        Scope { locals, environment: None }
+        Scope { name: None, locals, environment: None }
     }
 }
 
@@ -70,26 +71,27 @@ where
         for stmt in block_expr.stmts.iter_mut() {
             self.visit_stmt(stmt)?;
         }
-        self.visit_expr(block_expr.expr.as_mut())
+        self.visit_expr(block_expr.expr.as_mut(), None)
     }
 
     fn visit_stmt(&mut self, stmt: &mut Statement) -> Result<()> {
         match stmt {
             Statement::Let { name, value } => {
                 match value {
+                    // Also block?
                     Expr::Function { .. } => {
-                        self.visit_expr(value)?;
-                        self.add_local(&*name)
+                        self.add_local(&*name)?;
+                        self.visit_expr(value, Some(name.clone()))
                     },
                     _ => {
-                        self.add_local(&*name)?;
-                        self.visit_expr(value)
+                        self.visit_expr(value, None)?;
+                        self.add_local(&*name)
                     },
                 }
             }
             Statement::Var { name, value } => {
                 if self.is_top_level() {
-                    self.visit_expr(value)?;
+                    self.visit_expr(value, None)?;
                     self.globals.insert(name.to_string());
                     Ok(())
                 } else {
@@ -97,8 +99,8 @@ where
                 }
             }
             Statement::Set { variable, value } => {
-                self.visit_expr(variable)?;
-                self.visit_expr(value)
+                self.visit_expr(variable, None)?;
+                self.visit_expr(value, None)
             }
             Statement::Block(stmts) => stmts.into_iter()
                 .fold(Ok(()),
@@ -108,10 +110,10 @@ where
                 then_block,
                 else_block,
             } => {
-                self.visit_expr(condition)?;
-                self.visit_expr(then_block.as_mut())?;
+                self.visit_expr(condition, None)?;
+                self.visit_expr(then_block.as_mut(), None)?;
                 match else_block {
-                    Some(expr) => self.visit_expr(expr.as_mut()),
+                    Some(expr) => self.visit_expr(expr.as_mut(), None),
                     None => Ok(())
                 }               
             }
@@ -119,79 +121,129 @@ where
                 condition, 
                 then_block
             } => {
-                self.visit_expr(condition)?;
+                self.visit_expr(condition, None)?;
                 self.visit_stmt(then_block.as_mut())
             }
-            Statement::Return(expr) => self.visit_expr(expr),
+            Statement::Return(expr) => self.visit_expr(expr, None),
             Statement::Import { name, .. } => {
                 self.add_local(name)?;
                 Ok(())
             },
-            Statement::Expr(expr) => self.visit_expr(expr),
+            Statement::Expr(expr) => self.visit_expr(expr, None),
             _ => unimplemented!()
         }
     }
 
-    fn visit_expr(&mut self, expr: &mut Expr) -> Result<()> {
+    fn visit_expr(&mut self, expr: &mut Expr, func_name: Option<String>) -> Result<()> {
         use Expr::*;
         match expr {
             Identifier(name) => {
                 // TODO: seems like not the best way to do it
-                let mut is_local_somewhere = false;
-                // Add to the env until find local
-                for env in self.scopes.iter_mut()
-                    .rev()
-                    .take_while(|s| {
-                        is_local_somewhere = s.locals.contains(name);
-                        !is_local_somewhere
-                    })
-                    .filter_map(|s| s.environment.as_mut())
-                {
-                    env.insert(name.to_string());
-                }
 
-                if is_local_somewhere {
-                    if !self.has_local(name) {
-                        *expr = Expr::Access {
-                            table: Box::new(Expr::Identifier("env".to_owned())),
-                            field: Box::new(Expr::string(name.to_owned()))
+                let is_rec = {
+                    let env_name = self.scopes.iter().rev()
+                        .find(|s| s.environment.is_some())
+                        .and_then(|s| s.name.as_ref());
+                    env_name == Some(name)
+                };
+                
+                if is_rec {
+                    *expr = Rec;
+                    Ok(())                    
+                } else {
+                    let mut is_local_somewhere = false;
+
+                    for env in self.scopes.iter_mut()
+                        .rev()
+                        .take_while(|s| {
+                            is_local_somewhere = s.locals.contains(name);
+                            !is_local_somewhere
+                        })
+                        .filter_map(|s| s.environment.as_mut())
+                    {
+                        env.insert(name.to_string());
+                    }
+                    if is_local_somewhere {
+                        if !self.has_local(name) {
+                            *expr = Expr::Access {
+                                table: Box::new(Expr::Identifier("env".to_owned())),
+                                field: Box::new(Expr::string(name.to_owned()))
+                            }
+                        }
+                        Ok(())
+                    } else {
+                        let is_global = self.globals.contains(name);
+                        if !is_global {
+                            Err(self.parser.make_error(ParserErrorKind::Undeclared { name: name.to_string() })?)
+                        } else {
+                            Ok(())
                         }
                     }
-                    Ok(())
-                } else {
-                    let is_global = self.globals.contains(name);
-                    if !is_global {
-                        Err(self.parser.make_error(ParserErrorKind::Undeclared { name: name.to_string() })?)
-                    } else {
-                        Ok(())
-                    }
                 }
+                
+                // TODO: get the name of the env from scope
+                // Add to the env until find local
+                /* match func_name.map(|n| &n == name) {
+                    // Call self, ignore
+                    Some(true) => {
+                        *expr = Rec;
+                        Ok(())
+                    },
+                    _ => {
+                        for env in self.scopes.iter_mut()
+                            .rev()
+                            .take_while(|s| {
+                                is_local_somewhere = s.locals.contains(name);
+                                !is_local_somewhere
+                            })
+                            .filter_map(|s| s.environment.as_mut())
+                        {
+                            env.insert(name.to_string());
+                        }
+                        if is_local_somewhere {
+                            if !self.has_local(name) {
+                                *expr = Expr::Access {
+                                    table: Box::new(Expr::Identifier("env".to_owned())),
+                                    field: Box::new(Expr::string(name.to_owned()))
+                                }
+                            }
+                            Ok(())
+                        } else {
+                            let is_global = self.globals.contains(name);
+                            if !is_global {
+                                Err(self.parser.make_error(ParserErrorKind::Undeclared { name: name.to_string() })?)
+                            } else {
+                                Ok(())
+                            }
+                        }
+                    }
+                }    */                             
             }
-            Unary { expr, .. } => self.visit_expr(expr.as_mut()),
+            Unary { expr, .. } => self.visit_expr(expr.as_mut(), None),
             Binary { left, right, .. } => 
-                self.visit_expr(left.as_mut())
-                    .and(self.visit_expr(right.as_mut())), 
-            Grouping(expr) => self.visit_expr(expr.as_mut()),
-            Tuple(exprs) => exprs.into_iter().fold(Ok(()), |acc, e| acc.and(self.visit_expr(e))),
+                self.visit_expr(left.as_mut(), None)
+                    .and(self.visit_expr(right.as_mut(), None)), 
+            Grouping(expr) => self.visit_expr(expr.as_mut(), None),
+            Tuple(exprs) => exprs.into_iter().fold(Ok(()), |acc, e| acc.and(self.visit_expr(e, None))),
             Access { table, field } => 
-                self.visit_expr(table.as_mut())
-                    .and(self.visit_expr(field.as_mut())),
+                self.visit_expr(table.as_mut(), None)
+                    .and(self.visit_expr(field.as_mut(), None)),
             SelfAccess { table, args, .. } => {
-                self.visit_expr(table.as_mut())?;
+                self.visit_expr(table.as_mut(), None)?;
                 args.into_iter().fold(Ok(()),
-                    |res, arg| res.and(self.visit_expr(arg)))
+                    |res, arg| res.and(self.visit_expr(arg, None)))
             }
             TableInit { keys, values } => {
                 if let Some(keys) = keys {
                     for key in keys {
-                        self.visit_expr(key)?;
+                        self.visit_expr(key, None)?;
                     }
                 }
                 values.into_iter().fold(Ok(()),
-                    |res, value| res.and(self.visit_expr(value)))
+                    |res, value| res.and(self.visit_expr(value, None)))
             }
             Function { body, args, env } => {
-                self.enter_env();
+                self.enter_env(func_name);
 
                 for arg in args.iter() {
                     self.add_local(arg)?;
@@ -206,7 +258,7 @@ where
                         let keys = env_vars.iter().map(|v| Expr::string(v.clone())).collect();
                         let mut values: Vec<Expr> = env_vars.iter().map(|v| Identifier(v.clone())).collect();
                         for value in values.iter_mut() {
-                            self.visit_expr(value)?;
+                            self.visit_expr(value, None)?;
                         }
                         *env = Some((keys, values));
 
@@ -216,9 +268,9 @@ where
                 Ok(())
             }
             Call { func, args } => {
-                self.visit_expr(func.as_mut())?;
+                self.visit_expr(func.as_mut(), None)?;
                 args.into_iter().fold(Ok(()),
-                    |res, arg| res.and(self.visit_expr(arg)))
+                    |res, arg| res.and(self.visit_expr(arg, None)))
             }
             Literal(_) => Ok(()),
             Block(block_expr) => {
@@ -232,10 +284,11 @@ where
                 then_block,
                 else_block,
             } => {
-                self.visit_expr(condition.as_mut())?;
-                self.visit_expr(then_block.as_mut())?;
-                self.visit_expr(else_block.as_mut())
+                self.visit_expr(condition.as_mut(), None)?;
+                self.visit_expr(then_block.as_mut(), None)?;
+                self.visit_expr(else_block.as_mut(), None)
             }
+            Rec => Ok(()),
         }
     }
 
@@ -269,8 +322,8 @@ where
         self.scopes.pop();
     }
 
-    fn enter_env(&mut self) {
-        self.scopes.push(Scope::function())
+    fn enter_env(&mut self, name: Option<String>) {
+        self.scopes.push(Scope::function(name))
     }
 
     fn exit_env(&mut self) -> Option<HashSet<String>> {

@@ -178,7 +178,12 @@ impl Vm {
                     if let Some(value) = return_value {
                         self.stack.push(value);
                     }
-                },
+                }
+                Instruction::Rec => {
+                    let frame = self.frames.last().expect("Expected a call frame");
+                    let func = frame.function().expect("Expected call has a function").clone();
+                    self.stack.push(func.into());
+                }
                 _ => return Err(RuntimeError::UnsupportedInstruction(instr)),
             }
             let f = self.current_frame_mut()?;
@@ -315,19 +320,18 @@ impl Vm {
         }
     }
 
-    fn call_user(&mut self, mut function: UserFunction, pushed_args: u8) -> RuntimeResult<()> {
+    fn call_user(&mut self, function: UserFunction, pushed_args: u8) -> RuntimeResult<()> {
         if pushed_args == function.args_len() {
-            let proto = function.proto();
             let stack_top = self.stack.len() - function.args_len() as usize;
             
             // Push env if exists
-            if let Some(env) = function.take_env() {
-                self.stack.push(env.into())
+            if let Some(env) = function.env() {
+                self.stack.push(Rc::clone(env).into())
             }
 
             // let upvalues = function.extract_upvalues();
             self.frames
-                .push(Frame::new(0, proto, stack_top));
+                .push(Frame::new(0, function, stack_top));
             self.print_call_stack();
             self.print_stack();
             Ok(())
@@ -492,7 +496,7 @@ impl Vm {
     }
 
     fn instructions(&self) -> RuntimeResult<&[Instruction]> {
-        Ok(match self.current_frame()?.proto.as_ref() {
+        Ok(match self.current_frame()?.proto() {
             Some(proto) => proto
                 .instructions
                 .as_ref(),
