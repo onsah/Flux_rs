@@ -1,4 +1,5 @@
 mod array;
+#[cfg(test)]
 mod tests;
 
 use super::value::{ArgsLen, Function, NativeFunction, Table};
@@ -7,7 +8,7 @@ use crate::vm::{RuntimeError, Vm};
 use std::io::{self, Write};
 use std::rc::Rc;
 
-pub const PREDEFINED_CONSTANTS: [(&str, Value); 8] = [
+pub const PREDEFINED_CONSTANTS: [(&str, Value); 9] = [
     ("print", PRINT),
     ("println", PRINTLN),
     ("readline", READLINE),
@@ -15,7 +16,12 @@ pub const PREDEFINED_CONSTANTS: [(&str, Value); 8] = [
     ("number", NUMBER),
     ("assert", ASSERT),
     ("new", NEW),
-    ("for_each", FOR_EACH)
+    ("for_each", FOR_EACH),
+    ("arity", ARITY)
+];
+
+pub const STD: [(&str, &str); 1] = [
+    ("array", array::ARRAY),
 ];
 
 #[inline]
@@ -190,4 +196,21 @@ define_native! {
         }
     },
     ArgsLen::Exact(2)
+}
+
+define_native! {
+    ARITY,
+    |_vm, mut args| {
+        match args.pop()
+            .expect("Expected a value")
+            .into_user_fn()
+        {
+            Ok(func) => {
+                let arity = func.args_len();
+                Ok((arity as i64).into())
+            },
+            _ => Err(RuntimeError::TypeError),
+        }
+    },
+    ArgsLen::Exact(1)
 }

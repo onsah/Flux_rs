@@ -84,7 +84,7 @@ pub enum Instruction {
     Print,
     FuncDef {
         // TODO: make u32
-        proto_index: usize,
+        proto_index: u32,
         has_env: bool,
     },
     Call {
@@ -124,7 +124,7 @@ pub enum BinaryInstr {
     Le,
     Eq,
     Ne,
-    // Add modulus
+    Rem,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -136,7 +136,7 @@ pub enum UnaryInstr {
 impl BinaryInstr {
     pub fn is_arithmetic(self) -> bool {
         match self {
-            BinaryInstr::Add | BinaryInstr::Sub | BinaryInstr::Mul | BinaryInstr::Div => true,
+            BinaryInstr::Add | BinaryInstr::Sub | BinaryInstr::Mul | BinaryInstr::Div | BinaryInstr::Rem => true,
             _ => false,
         }
     }

@@ -317,6 +317,7 @@ where
         while let Ok(token) = self
             .match_token(TokenType::Star)
             .or_else(|_| self.match_token(TokenType::Slash))
+            .or_else(|_| self.match_token(TokenType::Rem))
         {
             let binop: BinaryOp = token.get_type().into();
             let right = self.unary()?;

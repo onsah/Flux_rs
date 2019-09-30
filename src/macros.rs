@@ -12,6 +12,12 @@ macro_rules! unit_test {
         #[test]
         fn $name() {
             use crate::sourcefile::{SourceFile, MetaData};
+            use crate::vm::value::Value;
+            use crate::parser::Parser;
+            use crate::compiler::Compiler;
+            use crate::vm::Vm;
+            use crate::error::FluxResult;
+
             let source = $source;
 
             let mut parser = Parser::new(source).unwrap();

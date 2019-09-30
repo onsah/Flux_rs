@@ -1,8 +1,10 @@
-pub(super) const SOURCE: &'static str = 
+pub(super) const ARRAY: &'static str = 
 "
-    Array = {
-         \"for_each\" = fn(self, f)
-            
-         end,
-    };
+    iter = fn(arr)
+        let i = 0;
+        fn()
+            i = i + 1;
+            arr[i - 1]
+        end
+    end;
 ";

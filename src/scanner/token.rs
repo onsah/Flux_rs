@@ -33,6 +33,7 @@ pub enum TokenType {
     Question,
     Semicolon,
     Colon,
+    Rem,
 
     /* Double char tokens */
     EqualEqual,

@@ -142,7 +142,7 @@ impl Vm {
                     self.stack.push(tuple)
                 }
                 Instruction::FuncDef { proto_index, has_env } => {
-                    let proto = self.current_chunk().prototypes()[proto_index].clone();
+                    let proto = self.current_chunk().prototypes()[proto_index as usize].clone();
                     let function = 
                         Value::Function(if has_env {
                             let env = self.pop_stack()?.into_table().expect("Expected a table as env");
@@ -389,7 +389,14 @@ impl Vm {
                     BinaryInstr::Add => Value::Number(a + b),
                     BinaryInstr::Sub => Value::Number(a - b),
                     BinaryInstr::Mul => Value::Number(a * b),
-                    BinaryInstr::Div => Value::Number(a / b),
+                    BinaryInstr::Div => {
+                        if b == 0.0 {
+                            return Err(RuntimeError::DivideByZero)
+                        } else {
+                            Value::Number(a / b)
+                        }
+                    },
+                    BinaryInstr::Rem => Value::Number(a % b),
 
                     BinaryInstr::Gt => Value::Bool(a > b),
                     BinaryInstr::Lt => Value::Bool(a < b),
@@ -398,15 +405,22 @@ impl Vm {
                     _ => unreachable!(),
                 }),
                 (Value::Number(a), Value::Int(b)) => Ok(match op {
-                    BinaryInstr::Add => Value::Number(a + b as f64),
-                    BinaryInstr::Sub => Value::Number(a - b as f64),
-                    BinaryInstr::Mul => Value::Number(a * b as f64),
-                    BinaryInstr::Div => Value::Number(a / b as f64),
+                    BinaryInstr::Add => Value::Number(a + (b as f64)),
+                    BinaryInstr::Sub => Value::Number(a - (b as f64)),
+                    BinaryInstr::Mul => Value::Number(a * (b as f64)),
+                    BinaryInstr::Div => {
+                        if b == 0 {
+                            return Err(RuntimeError::DivideByZero)
+                        } else {
+                            Value::Number(a / (b as f64))
+                        }
+                    },
+                    BinaryInstr::Rem => Value::Number(a % (b as f64)),
 
-                    BinaryInstr::Gt => Value::Bool(a > b as f64),
-                    BinaryInstr::Lt => Value::Bool(a < b as f64),
-                    BinaryInstr::Ge => Value::Bool(a >= b as f64),
-                    BinaryInstr::Le => Value::Bool(a <= b as f64),
+                    BinaryInstr::Gt => Value::Bool(a > (b as f64)),
+                    BinaryInstr::Lt => Value::Bool(a < (b as f64)),
+                    BinaryInstr::Ge => Value::Bool(a >= (b as f64)),
+                    BinaryInstr::Le => Value::Bool(a <= (b as f64)),
                     _ => unreachable!(),
                 }),
                 (Value::Int(a), Value::Int(b)) => Ok({
@@ -419,7 +433,8 @@ impl Vm {
                                 0 => return Err(RuntimeError::DivideByZero),
                                 n if a % n == 0 => Value::Int(a / b),
                                 _ => Value::Number(a as f64 / b as f64),
-                            },
+                            }, 
+                            BinaryInstr::Rem => Value::Int(a % b),
                             _ => unreachable!(),
                         }
                     } else {
@@ -430,6 +445,26 @@ impl Vm {
                             BinaryInstr::Le => Value::Bool(a <= b),
                             _ => unreachable!(),
                         }
+                    }
+                }),
+                (Value::Int(a), Value::Number(b)) => Ok({
+                    match op {
+                        BinaryInstr::Add => Value::Number((a as f64) + b),
+                        BinaryInstr::Sub => Value::Number((a as f64) - b),
+                        BinaryInstr::Mul => Value::Number((a as f64) * b),
+                        BinaryInstr::Div => {
+                            if b == 0.0 {
+                                return Err(RuntimeError::DivideByZero)
+                            } else {
+                                Value::Number((a as f64) / b)
+                            }
+                        }, 
+                        BinaryInstr::Rem => Value::Number((a as f64) % b),
+                        BinaryInstr::Gt => Value::Bool((a as f64) > b),
+                        BinaryInstr::Lt => Value::Bool((a as f64) < b),
+                        BinaryInstr::Ge => Value::Bool((a as f64) >= b),
+                        BinaryInstr::Le => Value::Bool((a as f64) <= b),
+                        _ => unreachable!(),
                     }
                 }),
                 (Value::Str(a), Value::Str(b)) => match op {

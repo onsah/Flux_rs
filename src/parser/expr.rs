@@ -121,6 +121,7 @@ pub enum BinaryOp {
     BangEqual,
     GreaterEqual,
     LessEqual,
+    Rem,
 }
 
 impl From<TokenType> for BinaryOp {
@@ -136,6 +137,7 @@ impl From<TokenType> for BinaryOp {
             TokenType::LessEqual => BinaryOp::LessEqual,
             TokenType::EqualEqual => BinaryOp::EqualEqual,
             TokenType::BangEqual => BinaryOp::BangEqual,
+            TokenType::Rem => BinaryOp::Rem,
             _ => panic!("Unexpected type to convert to BinaryOp: {:?}", typ),
         }
     }

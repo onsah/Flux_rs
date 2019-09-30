@@ -1,7 +1,7 @@
 use super::{RuntimeError, Value, Vm};
 use crate::compiler::Compiler;
 use crate::parser::{Parser, ParserError, ParserErrorKind};
-use crate::error::{FluxError, FluxResult};
+use crate::error::FluxError;
 
 unit_test! {
     wrong_number_of_args,
@@ -352,6 +352,26 @@ unit_test! {
         kind: ParserErrorKind::Undeclared { name: "foo".to_owned() },
         line: 1,
     }))
+}
+
+unit_test! {
+    remainder,
+    "
+    assert(5 % 2 == 1);
+    assert(5 % 1.5 == 0.5);
+    assert(5.5 % 1 == 0.5);
+    ",
+    Ok(Value::Unit)
+}
+
+#[test]
+fn divide_by_zero() {
+    use crate::eval;
+
+    assert_eq!(eval("5 / 0", ""), Err(RuntimeError::DivideByZero.into()));
+    assert_eq!(eval("5 / 0.0", ""), Err(RuntimeError::DivideByZero.into()));
+    assert_eq!(eval("5.0 / 0", ""), Err(RuntimeError::DivideByZero.into()));
+    assert_eq!(eval("5.0 / 0.0", ""), Err(RuntimeError::DivideByZero.into()));
 }
 
 #[test]

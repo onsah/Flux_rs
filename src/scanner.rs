@@ -70,8 +70,9 @@ impl<'a> Scanner<'a> {
                 '/' => match self.peek() {
                     '/' => self.single_line_comment()?,
                     _ => return Ok(self.new_token(TokenType::Slash, start, start + 1)),
-                },
-
+                }
+                '%' => return Ok(self.new_token(TokenType::Rem, start, start + 1)),
+                
                 '=' => match self.peek() {
                     '=' => {
                         let (end, _) = self.advance().unwrap();
@@ -82,7 +83,7 @@ impl<'a> Scanner<'a> {
                         return Ok(self.new_token(TokenType::RightArrow, start, end));
                     }
                     _ => return Ok(self.new_token(TokenType::Equal, start, start + 1)),
-                },
+                }
                 '!' => {
                     return self.double_char_token(
                         TokenType::Bang,

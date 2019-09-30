@@ -2,7 +2,8 @@ var LinkedList = {
     "init" = fn(self)
         self.head = nil;
     end,
-    "push" = fn(self, node)
+    "push" = fn(self, v)
+        let node = { "value" = v };
         node.next = self.head;
         self.head = node;
     end,
@@ -20,11 +21,11 @@ var LinkedList = {
 };
 
 let ll = new(LinkedList);
-ll:push({"value" = 1});
-ll:push({"value" = 2});
-ll:push({"value" = 3});
-ll:push({"value" = 4});
-ll:push({"value" = 5});
+ll:push(1);
+ll:push(2);
+ll:push(3);
+ll:push(4);
+ll:push(5);
 
 for i in ll:iter() do
     println(i);

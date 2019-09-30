@@ -211,9 +211,25 @@ impl Compiler {
     }
 
     fn import_stmt(&mut self, path: Vec<String>, name: String) -> CompileResult<()> {
+        use std::path::PathBuf;
         // Get source file
         let abs_path = if Self::is_std(&path) {
-            unimplemented!()
+            let current_dir = PathBuf::from(file!());
+            let src_dir = current_dir.parent().expect("Expected parent be 'src'");
+            let mut lib_dir = PathBuf::from(src_dir);
+            lib_dir.push("vm");
+            lib_dir.push("lib");
+
+            let last = path.len() - 2;
+            for (i, p) in path.into_iter().skip(1).enumerate() {
+                if i == last {
+                    lib_dir.push(p + ".flux");
+                } else {
+                    lib_dir.push(p);
+                }
+            }
+            println!("{:#?}", lib_dir);
+            lib_dir
         } else {
             absolute_path(self.metadata.current_dir(), path.as_slice())
         };
@@ -325,6 +341,7 @@ impl Compiler {
             BinaryOp::Minus => BinaryInstr::Sub,
             BinaryOp::Star => BinaryInstr::Mul,
             BinaryOp::Slash => BinaryInstr::Div,
+            BinaryOp::Rem => BinaryInstr::Rem,
 
             BinaryOp::Greater => BinaryInstr::Gt,
             BinaryOp::Less => BinaryInstr::Lt,
@@ -437,7 +454,7 @@ impl Compiler {
     fn define_func(&mut self, scope: ClosureScope, args_len: u8, has_env: bool) -> CompileResult<()> {
         let instructions = scope.instructions;
         let args_len = if has_env { args_len - 1 } else { args_len };
-        let proto_index = self.chunk.push_proto(args_len, instructions);
+        let proto_index = self.chunk.push_proto(args_len, instructions).try_into().unwrap();
         self.add_instr(Instruction::FuncDef { proto_index, has_env })
     }
 
