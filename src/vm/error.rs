@@ -1,6 +1,6 @@
 use crate::compiler::{BinaryInstr, Instruction};
+use crate::error::FluxError;
 use crate::vm::Value;
-use crate::error::{FluxError};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum RuntimeError {
@@ -16,8 +16,5 @@ pub enum RuntimeError {
     ExpectedArgsAtLeast(u8),
     DivideByZero,
     AssertionFailed(Value),
-    ImportError {
-        error: FluxError,
-        module: String,
-    }
+    ImportError { error: FluxError, module: String },
 }

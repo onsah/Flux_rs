@@ -3,23 +3,36 @@ mod error;
 mod instruction;
 mod io;
 
-use std::convert::TryInto;
-use crate::parser::{Parser, Ast, BinaryOp, Expr, BlockExpr, Literal, Statement, UnaryOp};
-use crate::vm::{Value, Integer};
-use crate::sourcefile::{SourceFile, MetaData};
-pub use chunk::{Chunk, FuncProto, JumpCondition};
+use self::io::absolute_path;
+use crate::parser::{Ast, BinaryOp, BlockExpr, Expr, Literal, Parser, Statement, UnaryOp};
+use crate::sourcefile::{MetaData, SourceFile};
+use crate::vm::{FuncProtoRef, Integer, Value};
+pub use chunk::{Chunk, CompiledSource, FuncProto, JumpCondition};
 pub use error::CompileError;
 pub use instruction::{BinaryInstr, Instruction, UnaryInstr};
-use self::io::absolute_path;
+use std::convert::TryInto;
+use std::rc::Rc;
 
 pub type CompileResult<T> = Result<T, CompileError>;
 
-pub struct Compiler {
+pub struct Compiler<'a> {
     chunk: Chunk,
+    constant_table: ConstantTable<'a>,
     locals: Vec<Local>,
     depth: u8,
     closure_scopes: Vec<ClosureScope>,
     metadata: MetaData,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ConstantTableStruct {
+    pub constants: Vec<Value>,
+    pub prototypes: Vec<FuncProtoRef>,
+}
+
+pub enum ConstantTable<'a> {
+    Owned(ConstantTableStruct),
+    Borrowed(&'a mut ConstantTableStruct),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -40,39 +53,55 @@ struct ClosureScope {
 /**
  * Compiling
  */
-impl Compiler {
-
-    pub fn compile(
-        SourceFile {
-            ast,
-            metadata,
-        }: SourceFile
-    ) -> CompileResult<Chunk> {
+impl<'a> Compiler<'a> {
+    pub fn compile(SourceFile { ast, metadata }: SourceFile) -> CompileResult<CompiledSource> {
         let mut compiler = Self::new(metadata);
+        compiler.compile_module(ast)?;
+
+        let constants = match compiler.constant_table {
+            ConstantTable::Owned(c) => c,
+            _ => unreachable!(),
+        };
+        Ok(CompiledSource {
+            chunk: compiler.chunk,
+            constant_table: Rc::new(constants),
+        })
+    }
+
+    fn compile_with_table(
+        SourceFile { ast, metadata }: SourceFile,
+        table: &'a mut ConstantTableStruct,
+    ) -> CompileResult<Chunk> {
+        let mut compiler = Self::with_table(metadata, table);
         compiler.compile_module(ast)?;
         Ok(compiler.chunk)
     }
 
     fn compile_module(&mut self, ast: Ast) -> CompileResult<()> {
         self.compile_ast(ast)?;
-        self.add_instr(Instruction::Return {
-            return_value: true,
-        })
+        self.add_instr(Instruction::Return { return_value: true })
     }
 
     fn new(metadata: MetaData) -> Self {
         Compiler {
             chunk: Chunk::new(),
+            constant_table: ConstantTable::default(),
             locals: Vec::new(),
             depth: 0,
             closure_scopes: Vec::new(),
-            metadata
+            metadata,
         }
+    }
+
+    fn with_table(metadata: MetaData, table: &'a mut ConstantTableStruct) -> Self {
+        let mut compiler = Compiler::new(metadata);
+        compiler.constant_table = ConstantTable::Borrowed(table);
+        compiler
     }
 
     fn compile_ast(&mut self, ast: Ast) -> CompileResult<()> {
         self.enter_function();
-        
+
         let body = ast.get_expr();
         self.func_body(body)?;
 
@@ -126,7 +155,7 @@ impl Compiler {
             Expr::Function { .. } => {
                 self.push_local(name);
                 self.compile_expr(value)
-            },
+            }
             _ => {
                 self.compile_expr(value)?;
                 self.push_local(name);
@@ -228,7 +257,7 @@ impl Compiler {
                     lib_dir.push(p);
                 }
             }
-            println!("{:#?}", lib_dir);
+            debug!("Directory of {}: {:#?}", &name, &lib_dir);
             lib_dir
         } else {
             absolute_path(self.metadata.current_dir(), path.as_slice())
@@ -236,17 +265,25 @@ impl Compiler {
         let source = io::read_file(abs_path.clone())?;
         // Parse and store
         let ast = Parser::parse_str(source.as_str())?;
+        debug!("Module {}: {:#?}", &name, &ast);
         let metadata = MetaData {
-            dir: abs_path.parent().expect("Expected a parent directory").to_owned(), 
+            dir: abs_path
+                .parent()
+                .expect("Expected a parent directory")
+                .to_owned(),
         };
         // Compile the module
-        let chunk = Compiler::compile(SourceFile { ast, metadata })
-            .map_err(|error| CompileError::ModuleError {
-                name: name.clone(),
-                error: Box::new(error),
-            })?;
+        let chunk = Compiler::compile_with_table(
+            SourceFile { ast, metadata },
+            self.constant_table.as_mut(),
+        )
+        .map_err(|error| CompileError::ModuleError {
+            name: name.clone(),
+            error: Box::new(error),
+        })?;
         // Add import to table ad push instruction
-        self.chunk.add_import(chunk, name)
+        let name_index = self.add_constant(name.clone().into(), false)?;
+        self.chunk.add_import(chunk, name, name_index)
     }
 
     #[inline]
@@ -264,7 +301,11 @@ impl Compiler {
             Expr::Grouping(expr) => self.compile_expr(*expr),
             Expr::Tuple(exprs) => self.tuple(exprs),
             Expr::Access { table, field } => self.access(*table, *field),
-            Expr::SelfAccess { table, method, args } => self.self_access(*table, method, args),
+            Expr::SelfAccess {
+                table,
+                method,
+                args,
+            } => self.self_access(*table, method, args),
             Expr::TableInit { keys, values } => self.table_init(keys, values),
             Expr::Function { args, body, env } => self.function_def(args, body, env),
             Expr::Call { func, args } => self.call(*func, args),
@@ -290,7 +331,7 @@ impl Compiler {
             Literal::Number(n) => match n.fract() == 0.0 {
                 true => self.int_literal(n as i64),
                 false => self.add_constant(Value::Number(n), true).map(|_| ()),
-            }
+            },
             Literal::Str(string) => {
                 self.add_constant(string.into(), true)?;
                 Ok(())
@@ -390,7 +431,10 @@ impl Compiler {
 
         self.compile_expr(table)?;
         self.compile_args(args)?;
-        self.add_instr(Instruction::GetMethodImm { index, table_stack_index })?;
+        self.add_instr(Instruction::GetMethodImm {
+            index,
+            table_stack_index,
+        })?;
         self.add_instr(Instruction::Call { args_len })
     }
 
@@ -416,16 +460,20 @@ impl Compiler {
     }
 
     // Compiles function definition
-    fn function_def(&mut self, args: Vec<String>, body: BlockExpr, env: Option<(Vec<Expr>, Vec<Expr>)>) -> CompileResult<()> {
+    fn function_def(
+        &mut self,
+        args: Vec<String>,
+        body: BlockExpr,
+        env: Option<(Vec<Expr>, Vec<Expr>)>,
+    ) -> CompileResult<()> {
         // if env is some compile as table literal
         // define function that has env
-        let has_env = 
-            if let Some((keys, values)) = env {
-                self.table_init(Some(keys), values)?;
-                true
-            } else {
-                false
-            };
+        let has_env = if let Some((keys, values)) = env {
+            self.table_init(Some(keys), values)?;
+            true
+        } else {
+            false
+        };
 
         let args_len = args.len() as u8;
         self.enter_function();
@@ -445,17 +493,23 @@ impl Compiler {
             self.compile_stmt(stmt)?;
         }
         self.compile_expr(*body.expr)?;
-        self.add_instr(Instruction::Return {
-            return_value: true,
-        })
+        self.add_instr(Instruction::Return { return_value: true })
     }
 
     // Creates function prototype
-    fn define_func(&mut self, scope: ClosureScope, args_len: u8, has_env: bool) -> CompileResult<()> {
+    fn define_func(
+        &mut self,
+        scope: ClosureScope,
+        args_len: u8,
+        has_env: bool,
+    ) -> CompileResult<()> {
         let instructions = scope.instructions;
         let args_len = if has_env { args_len - 1 } else { args_len };
-        let proto_index = self.chunk.push_proto(args_len, instructions).try_into().unwrap();
-        self.add_instr(Instruction::FuncDef { proto_index, has_env })
+        let proto_index = self.add_proto(args_len, instructions).try_into().unwrap();
+        self.add_instr(Instruction::FuncDef {
+            proto_index,
+            has_env,
+        })
     }
 
     fn call(&mut self, func: Expr, args: Vec<Expr>) -> CompileResult<()> {
@@ -508,7 +562,7 @@ impl Compiler {
  * Utility
  */
 
-impl Compiler {
+impl<'a> Compiler<'a> {
     fn add_instr(&mut self, instruction: Instruction) -> CompileResult<()> {
         self.instructions_mut().push(instruction);
         Ok(())
@@ -561,7 +615,7 @@ impl Compiler {
     }
 
     fn add_constant(&mut self, constant: Value, push_stack: bool) -> CompileResult<u8> {
-        let index = self.chunk.add_constant(constant)?;
+        let index = self.add_constant_table(constant)?;
         if push_stack {
             self.add_instr(Instruction::Constant { index })?;
         }
@@ -582,7 +636,7 @@ impl Compiler {
 /**
  * Locals and scoping
  */
-impl Compiler {
+impl<'a> Compiler<'a> {
     // TODO: Write tests for local scoping
     // Returns the stack index and the frame offset
     // TODO: a local is now always at the same frame
@@ -627,7 +681,7 @@ impl Compiler {
         let pop_count = self.scope_decr();
         for _ in 0..pop_count {
             self.add_instr(Instruction::Pop)?;
-        } 
+        }
         Ok(self.closure_scopes.pop().unwrap())
     }
 
@@ -652,5 +706,115 @@ impl Compiler {
             pop_count += 1;
         }
         pop_count
+    }
+}
+
+impl<'a> Compiler<'a> {
+    const MAX_CONST: usize = std::u8::MAX as usize;
+
+    pub fn add_proto(&mut self, args_len: u8, instructions: Vec<Instruction>) -> usize {
+        self.constant_table
+            .prototypes_mut()
+            .push(Rc::new(FuncProto {
+                args_len,
+                instructions: instructions.into_boxed_slice(),
+            }));
+        self.constant_table.prototypes().len() - 1
+    }
+
+    pub fn add_constant_table(&mut self, constant: Value) -> CompileResult<u8> {
+        let index = match &constant {
+            Value::Str(string) => {
+                if let Some(index) = self.has_string(string) {
+                    Ok(index)
+                } else {
+                    self.push_constant(constant)
+                }
+            }
+            _ => self.push_constant(constant),
+        }?;
+        Ok(index)
+    }
+
+    #[inline]
+    pub fn push_constant(&mut self, constant: Value) -> CompileResult<u8> {
+        if self.constant_table.constants().len() >= Self::MAX_CONST {
+            Err(CompileError::TooManyConstants)
+        } else {
+            let constants = self.constant_table.constants_mut();
+            constants.push(constant);
+            let index = (constants.len() - 1) as u8;
+            // self.push_instr(Instruction::Constant { index })?;
+            Ok(index)
+        }
+    }
+
+    pub fn has_string(&self, string: &str) -> Option<u8> {
+        self.constant_table
+            .constants()
+            .iter()
+            .enumerate()
+            .find_map(|(i, s)| match s {
+                Value::Str(s) => {
+                    if **s == string {
+                        Some(i as u8)
+                    } else {
+                        None
+                    }
+                }
+                Value::Embedded(s) => {
+                    if *s == string {
+                        Some(i as u8)
+                    } else {
+                        None
+                    }
+                }
+                _ => None,
+            })
+    }
+}
+
+impl<'a> ConstantTable<'a> {
+    fn constants(&self) -> &[Value] {
+        &self.as_ref().constants
+    }
+
+    fn prototypes(&self) -> &[FuncProtoRef] {
+        &self.as_ref().prototypes
+    }
+
+    fn constants_mut(&mut self) -> &mut Vec<Value> {
+        &mut self.as_mut().constants
+    }
+
+    fn prototypes_mut(&mut self) -> &mut Vec<FuncProtoRef> {
+        &mut self.as_mut().prototypes
+    }
+}
+
+impl<'a> AsRef<ConstantTableStruct> for ConstantTable<'a> {
+    fn as_ref(&self) -> &ConstantTableStruct {
+        match self {
+            ConstantTable::Owned(ct) => ct,
+            ConstantTable::Borrowed(ct) => ct,
+        }
+    }
+}
+
+impl<'a> AsMut<ConstantTableStruct> for ConstantTable<'a> {
+    fn as_mut(&mut self) -> &mut ConstantTableStruct {
+        match self {
+            ConstantTable::Owned(ct) => ct,
+            ConstantTable::Borrowed(ct) => ct,
+        }
+    }
+}
+
+impl Default for ConstantTable<'_> {
+    fn default() -> Self {
+        ConstantTable::Owned(ConstantTableStruct {
+            constants: Vec::new(),
+            prototypes: Vec::new(),
+        })
     }
 }

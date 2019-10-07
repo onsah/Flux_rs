@@ -1,15 +1,16 @@
-use super::Instruction;
-use super::{CompileError, CompileResult};
-use crate::vm::lib::constant_names;
-use crate::vm::{Value, FuncProtoRef};
+use super::{CompileError, CompileResult, ConstantTableStruct, Instruction};
 use std::collections::HashMap;
 use std::rc::Rc;
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct CompiledSource {
+    pub chunk: Chunk,
+    pub constant_table: Rc<ConstantTableStruct>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct Chunk {
     instructions: Vec<Instruction>,
-    constants: Vec<Value>,
-    prototypes: Vec<FuncProtoRef>,
     imports: HashMap<String, Chunk>,
 }
 
@@ -27,8 +28,6 @@ pub enum JumpCondition {
 }
 
 impl Chunk {
-    const MAX_CONST: usize = std::u8::MAX as usize;
-
     pub fn new() -> Self {
         Self::default()
     }
@@ -39,64 +38,14 @@ impl Chunk {
         Ok(())
     }
 
-    pub fn add_import(&mut self, import: Chunk, name: String) -> CompileResult<()> {
+    pub fn add_import(&mut self, import: Chunk, name: String, name_index: u8) -> CompileResult<()> {
         if self.imports.contains_key(&name) {
             panic!("module '{}' is already imported", &name);
         }
-        let name_index = self.add_constant(name.clone().into())?;
+        // let name_index = self.add_constant(name.clone().into())?;
         self.push_instr(Instruction::Import { name_index })?;
         self.imports.insert(name, import);
         Ok(())
-    }
-
-    // Adds constant if not present
-    pub fn add_constant(&mut self, constant: Value) -> CompileResult<u8> {
-        let index = match &constant {
-            Value::Str(string) => {
-                if let Some(index) = self.has_string(string) {
-                    Ok(index)
-                } else {
-                    self.push_constant(constant)
-                }
-            }
-            _ => self.push_constant(constant),
-        }?;
-        Ok(index)
-    }
-
-    #[inline]
-    pub fn push_constant(&mut self, constant: Value) -> CompileResult<u8> {
-        if self.constants.len() >= Self::MAX_CONST {
-            Err(CompileError::TooManyConstants)
-        } else {
-            self.constants.push(constant);
-            let index = (self.constants.len() - 1) as u8;
-            // self.push_instr(Instruction::Constant { index })?;
-            Ok(index)
-        }
-    }
-
-    pub fn has_string(&self, string: &str) -> Option<u8> {
-        self.constants
-            .iter()
-            .enumerate()
-            .find_map(|(i, s)| match s {
-                Value::Str(s) => {
-                    if **s == string {
-                        Some(i as u8)
-                    } else {
-                        None
-                    }
-                }
-                Value::Embedded(s) => {
-                    if *s == string {
-                        Some(i as u8)
-                    } else {
-                        None
-                    }
-                }
-                _ => None,
-            })
     }
 
     pub fn push_placeholder(&mut self) -> CompileResult<usize> {
@@ -132,32 +81,12 @@ impl Chunk {
         }
     }
 
-    pub fn push_proto(
-        &mut self,
-        args_len: u8,
-        instructions: Vec<Instruction>,
-    ) -> usize {
-        self.prototypes.push(Rc::new(FuncProto {
-            args_len,
-            instructions: instructions.into_boxed_slice(),
-        }));
-        self.prototypes.len() - 1
-    }
-
-    pub fn prototypes(&self) -> &[FuncProtoRef] {
-        self.prototypes.as_slice()
-    }
-
     pub fn instructions(&self) -> &[Instruction] {
         self.instructions.as_slice()
     }
 
     pub fn instructions_mut(&mut self) -> &mut Vec<Instruction> {
         &mut self.instructions
-    }
-
-    pub fn constants(&self) -> &[Value] {
-        self.constants.as_slice()
     }
 
     pub fn take_imports(&mut self) -> HashMap<String, Chunk> {
@@ -173,8 +102,6 @@ impl Default for Chunk {
     fn default() -> Self {
         Chunk {
             instructions: Vec::new(),
-            constants: constant_names().collect(),
-            prototypes: Vec::new(),
             imports: HashMap::new(),
         }
     }

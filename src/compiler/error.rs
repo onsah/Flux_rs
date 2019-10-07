@@ -1,12 +1,14 @@
 use crate::compiler::Instruction;
-use crate::parser::{ParserError, Expr};
+use crate::parser::{Expr, ParserError};
 use std::io;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum CompileError {
     TooManyConstants,
     UnimplementedExpr(Expr),
-    UndefinedVariable { name: String },
+    UndefinedVariable {
+        name: String,
+    },
     InvalidAssignmentTarget(Expr),
     WrongPatch(Instruction),
     TooLongToJump,
@@ -15,7 +17,7 @@ pub enum CompileError {
     ModuleError {
         name: String,
         error: Box<CompileError>,
-    }
+    },
 }
 
 impl From<ParserError> for CompileError {

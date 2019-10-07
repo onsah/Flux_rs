@@ -1,7 +1,7 @@
 mod metadata;
 
-pub use metadata::MetaData;
 use crate::parser::Ast;
+pub use metadata::MetaData;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct SourceFile {

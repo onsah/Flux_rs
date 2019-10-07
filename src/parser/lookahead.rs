@@ -62,7 +62,7 @@ where
         if token.is_invalid() {
             Err(ParserError {
                 kind: ParserErrorKind::UnexpectedToken { token },
-                line
+                line,
             })
         } else {
             // println!("current token: {:?}", token);

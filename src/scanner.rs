@@ -35,7 +35,10 @@ impl<'a> Scanner<'a> {
             match self.scan_next() {
                 Ok(token) => self.tokens.push(token),
                 Err(e) => match e {
-                    LexError { kind: LexErrorKind::Eof, .. } => {
+                    LexError {
+                        kind: LexErrorKind::Eof,
+                        ..
+                    } => {
                         self.tokens.push(self.new_token(TokenType::Eof, 0, 0));
                         // We need this for match_token
                         self.tokens.push(self.new_token(TokenType::Eof, 0, 0));
@@ -70,9 +73,9 @@ impl<'a> Scanner<'a> {
                 '/' => match self.peek() {
                     '/' => self.single_line_comment()?,
                     _ => return Ok(self.new_token(TokenType::Slash, start, start + 1)),
-                }
+                },
                 '%' => return Ok(self.new_token(TokenType::Rem, start, start + 1)),
-                
+
                 '=' => match self.peek() {
                     '=' => {
                         let (end, _) = self.advance().unwrap();
@@ -83,7 +86,7 @@ impl<'a> Scanner<'a> {
                         return Ok(self.new_token(TokenType::RightArrow, start, end));
                     }
                     _ => return Ok(self.new_token(TokenType::Equal, start, start + 1)),
-                }
+                },
                 '!' => {
                     return self.double_char_token(
                         TokenType::Bang,
@@ -146,7 +149,10 @@ impl<'a> Scanner<'a> {
         let end = loop {
             match self.match_char('\"') {
                 Ok((i, _)) => break i,
-                Err(LexError { kind: LexErrorKind::UnexpectedChar(_), .. }) => {
+                Err(LexError {
+                    kind: LexErrorKind::UnexpectedChar(_),
+                    ..
+                }) => {
                     self.advance()?;
                 }
                 Err(err) => return Err(err),
@@ -182,9 +188,10 @@ impl<'a> Scanner<'a> {
     ) -> Result<Token> {
         match self.match_char(second_char) {
             Ok((end, _)) => Ok(self.new_token(double_type, start, end)),
-            Err(LexError { kind: LexErrorKind::UnexpectedChar(_), .. }) => {
-                Ok(self.new_token(single_type, start, start + 1))
-            }
+            Err(LexError {
+                kind: LexErrorKind::UnexpectedChar(_),
+                ..
+            }) => Ok(self.new_token(single_type, start, start + 1)),
             Err(err) => Err(err),
         }
     }

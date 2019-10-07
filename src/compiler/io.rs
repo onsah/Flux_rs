@@ -1,10 +1,12 @@
-use std::path::PathBuf;
+use super::{CompileError, CompileResult};
 use std::fs::File;
 use std::io::Read;
-use super::{CompileResult, CompileError};
+use std::path::PathBuf;
 
 pub fn absolute_path<S>(dir: &str, file_path: &[S]) -> PathBuf
-where S: AsRef<str> {
+where
+    S: AsRef<str>,
+{
     let mut path = PathBuf::from(dir);
     for p in file_path {
         path.push(p.as_ref());
@@ -19,7 +21,7 @@ pub fn read_file(path: PathBuf) -> CompileResult<String> {
             let mut string = String::new();
             file.read_to_string(&mut string).expect("failed to write");
             Ok(string)
-        },
+        }
         Err(err) => Err(CompileError::IoError(err.kind())),
     }
 }
@@ -33,7 +35,7 @@ mod tests {
         let dir = "src/";
         let file_path = ["lib", "math", "sqrt"];
         let path = absolute_path(dir, &file_path);
-        
+
         assert!(path.starts_with("src/lib/math"));
         assert_eq!(path, PathBuf::from("src/lib/math/sqrt.flux"));
     }

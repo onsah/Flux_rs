@@ -63,8 +63,7 @@ impl Table {
     }
 
     pub fn values(&self) -> impl Iterator<Item = &Value> {
-        self.array.iter().map(|(_, v)| v)
-            .chain(self.table.values())
+        self.array.iter().map(|(_, v)| v).chain(self.table.values())
     }
 }
 

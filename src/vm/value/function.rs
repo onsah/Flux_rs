@@ -104,7 +104,7 @@ impl PartialEq for UserFunction {
 impl Hash for UserFunction {
     // Code start should be unique
     fn hash<H: Hasher>(&self, state: &mut H) {
-        let adress = self.proto.as_ref() as *const FuncProto; 
+        let adress = self.proto.as_ref() as *const FuncProto;
         adress.hash(state)
     }
 }

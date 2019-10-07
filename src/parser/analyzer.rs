@@ -1,19 +1,10 @@
-use super::{
-    Parser,
-    Token,
-    Ast, 
-    BlockExpr, 
-    Statement,
-    Expr,
-    ParserErrorKind,
-    Result
-};
+use super::{Ast, BlockExpr, Expr, Parser, ParserErrorKind, Result, Statement, Token};
 use crate::vm::lib::PREDEFINED_CONSTANTS;
 use std::collections::HashSet;
 
 pub struct Analyzer<'a, I>
-where 
-    I: Iterator<Item = Token>, 
+where
+    I: Iterator<Item = Token>,
 {
     parser: &'a Parser<I>,
     scopes: Vec<Scope>,
@@ -30,18 +21,31 @@ const ENV_NAME: &str = "env";
 
 impl Scope {
     fn block() -> Self {
-        Scope { name: None, locals: HashSet::new(), environment: None }
-    } 
+        Scope {
+            name: None,
+            locals: HashSet::new(),
+            environment: None,
+        }
+    }
 
     fn function(name: Option<String>) -> Self {
-        Scope { name, locals: HashSet::new(), environment: Some(HashSet::new()) }
+        Scope {
+            name,
+            locals: HashSet::new(),
+            environment: Some(HashSet::new()),
+        }
     }
 
     fn global() -> Self {
-        let locals: HashSet<String> = PREDEFINED_CONSTANTS.iter()
+        let locals: HashSet<String> = PREDEFINED_CONSTANTS
+            .iter()
             .map(|(name, _)| name.to_string())
             .collect();
-        Scope { name: None, locals, environment: None }
+        Scope {
+            name: None,
+            locals,
+            environment: None,
+        }
     }
 }
 
@@ -82,11 +86,11 @@ where
                     Expr::Function { .. } => {
                         self.add_local(&*name)?;
                         self.visit_expr(value, Some(name.clone()))
-                    },
+                    }
                     _ => {
                         self.visit_expr(value, None)?;
                         self.add_local(&*name)
-                    },
+                    }
                 }
             }
             Statement::Var { name, value } => {
@@ -95,16 +99,20 @@ where
                     self.globals.insert(name.to_string());
                     Ok(())
                 } else {
-                    Err(self.parser.make_error(ParserErrorKind::InnerVarDeclaration { name: name.to_string() })?)
+                    Err(self
+                        .parser
+                        .make_error(ParserErrorKind::InnerVarDeclaration {
+                            name: name.to_string(),
+                        })?)
                 }
             }
             Statement::Set { variable, value } => {
                 self.visit_expr(variable, None)?;
                 self.visit_expr(value, None)
             }
-            Statement::Block(stmts) => stmts.into_iter()
-                .fold(Ok(()),
-                    |result, stmt| result.and(self.visit_stmt(stmt))),
+            Statement::Block(stmts) => stmts
+                .into_iter()
+                .fold(Ok(()), |result, stmt| result.and(self.visit_stmt(stmt))),
             Statement::If {
                 condition,
                 then_block,
@@ -114,12 +122,12 @@ where
                 self.visit_expr(then_block.as_mut(), None)?;
                 match else_block {
                     Some(expr) => self.visit_expr(expr.as_mut(), None),
-                    None => Ok(())
-                }               
+                    None => Ok(()),
+                }
             }
             Statement::While {
-                condition, 
-                then_block
+                condition,
+                then_block,
             } => {
                 self.visit_expr(condition, None)?;
                 self.visit_stmt(then_block.as_mut())
@@ -128,9 +136,9 @@ where
             Statement::Import { name, .. } => {
                 self.add_local(name)?;
                 Ok(())
-            },
+            }
             Statement::Expr(expr) => self.visit_expr(expr, None),
-            _ => unimplemented!()
+            _ => unimplemented!(),
         }
     }
 
@@ -141,19 +149,24 @@ where
                 // TODO: seems like not the best way to do it
 
                 let is_rec = {
-                    let env_name = self.scopes.iter().rev()
+                    let env_name = self
+                        .scopes
+                        .iter()
+                        .rev()
                         .find(|s| s.environment.is_some())
                         .and_then(|s| s.name.as_ref());
                     env_name == Some(name)
                 };
-                
+
                 if is_rec {
                     *expr = Rec;
-                    Ok(())                    
+                    Ok(())
                 } else {
                     let mut is_local_somewhere = false;
 
-                    for env in self.scopes.iter_mut()
+                    for env in self
+                        .scopes
+                        .iter_mut()
                         .rev()
                         .take_while(|s| {
                             is_local_somewhere = s.locals.contains(name);
@@ -167,20 +180,22 @@ where
                         if !self.has_local(name) {
                             *expr = Expr::Access {
                                 table: Box::new(Expr::Identifier("env".to_owned())),
-                                field: Box::new(Expr::string(name.to_owned()))
+                                field: Box::new(Expr::string(name.to_owned())),
                             }
                         }
                         Ok(())
                     } else {
                         let is_global = self.globals.contains(name);
                         if !is_global {
-                            Err(self.parser.make_error(ParserErrorKind::Undeclared { name: name.to_string() })?)
+                            Err(self.parser.make_error(ParserErrorKind::Undeclared {
+                                name: name.to_string(),
+                            })?)
                         } else {
                             Ok(())
                         }
                     }
                 }
-                
+
                 // TODO: get the name of the env from scope
                 // Add to the env until find local
                 /* match func_name.map(|n| &n == name) {
@@ -217,21 +232,23 @@ where
                             }
                         }
                     }
-                }    */                             
+                }    */
             }
             Unary { expr, .. } => self.visit_expr(expr.as_mut(), None),
-            Binary { left, right, .. } => 
-                self.visit_expr(left.as_mut(), None)
-                    .and(self.visit_expr(right.as_mut(), None)), 
+            Binary { left, right, .. } => self
+                .visit_expr(left.as_mut(), None)
+                .and(self.visit_expr(right.as_mut(), None)),
             Grouping(expr) => self.visit_expr(expr.as_mut(), None),
-            Tuple(exprs) => exprs.into_iter().fold(Ok(()), |acc, e| acc.and(self.visit_expr(e, None))),
-            Access { table, field } => 
-                self.visit_expr(table.as_mut(), None)
-                    .and(self.visit_expr(field.as_mut(), None)),
+            Tuple(exprs) => exprs
+                .into_iter()
+                .fold(Ok(()), |acc, e| acc.and(self.visit_expr(e, None))),
+            Access { table, field } => self
+                .visit_expr(table.as_mut(), None)
+                .and(self.visit_expr(field.as_mut(), None)),
             SelfAccess { table, args, .. } => {
                 self.visit_expr(table.as_mut(), None)?;
-                args.into_iter().fold(Ok(()),
-                    |res, arg| res.and(self.visit_expr(arg, None)))
+                args.into_iter()
+                    .fold(Ok(()), |res, arg| res.and(self.visit_expr(arg, None)))
             }
             TableInit { keys, values } => {
                 if let Some(keys) = keys {
@@ -239,8 +256,9 @@ where
                         self.visit_expr(key, None)?;
                     }
                 }
-                values.into_iter().fold(Ok(()),
-                    |res, value| res.and(self.visit_expr(value, None)))
+                values
+                    .into_iter()
+                    .fold(Ok(()), |res, value| res.and(self.visit_expr(value, None)))
             }
             Function { body, args, env } => {
                 self.enter_env(func_name);
@@ -256,21 +274,22 @@ where
                     0 => (),
                     _ => {
                         let keys = env_vars.iter().map(|v| Expr::string(v.clone())).collect();
-                        let mut values: Vec<Expr> = env_vars.iter().map(|v| Identifier(v.clone())).collect();
+                        let mut values: Vec<Expr> =
+                            env_vars.iter().map(|v| Identifier(v.clone())).collect();
                         for value in values.iter_mut() {
                             self.visit_expr(value, None)?;
                         }
                         *env = Some((keys, values));
 
                         args.push(ENV_NAME.to_owned());
-                    },
+                    }
                 }
                 Ok(())
             }
             Call { func, args } => {
                 self.visit_expr(func.as_mut(), None)?;
-                args.into_iter().fold(Ok(()),
-                    |res, arg| res.and(self.visit_expr(arg, None)))
+                args.into_iter()
+                    .fold(Ok(()), |res, arg| res.and(self.visit_expr(arg, None)))
             }
             Literal(_) => Ok(()),
             Block(block_expr) => {
@@ -278,7 +297,7 @@ where
                 self.visit_block_expr(block_expr)?;
                 self.exit_scope();
                 Ok(())
-            },
+            }
             If {
                 condition,
                 then_block,
@@ -293,10 +312,15 @@ where
     }
 
     fn add_local(&mut self, name: &str) -> Result<()> {
-        let inserted = self.scopes.last_mut().unwrap().locals.insert(name.to_owned());
+        let inserted = self
+            .scopes
+            .last_mut()
+            .unwrap()
+            .locals
+            .insert(name.to_owned());
         if !inserted {
             Err(self.parser.make_error(ParserErrorKind::Redeclaration {
-                name: name.to_owned()
+                name: name.to_owned(),
             })?)
         } else {
             Ok(())
@@ -309,7 +333,9 @@ where
             if scope.locals.contains(name) {
                 return true;
             }
-            if scope.environment.is_some() { break }
+            if scope.environment.is_some() {
+                break;
+            }
         }
         false
     }
@@ -353,7 +379,7 @@ mod tests {
         let ast = parser.parse().unwrap();
         let desugared = Analyzer::analyze(ast, &parser).unwrap();
         // Complete this
-       /*  let ast = Expr::Block(BlockExpr {
+        /*  let ast = Expr::Block(BlockExpr {
             stmts: vec![],
             expr: Box::new(Expr::Function {
                 args: vec!["x".to_owned()],
@@ -400,7 +426,11 @@ mod tests {
         end
         ";
         let parse_result = Parser::parse_str(source);
-        assert_eq!(parse_result.unwrap_err().kind, 
-            ParserErrorKind::InnerVarDeclaration { name: "a".to_string() })
+        assert_eq!(
+            parse_result.unwrap_err().kind,
+            ParserErrorKind::InnerVarDeclaration {
+                name: "a".to_string()
+            }
+        )
     }
 }

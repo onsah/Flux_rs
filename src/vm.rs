@@ -5,16 +5,16 @@ pub mod lib;
 mod tests;
 mod value;
 
-use crate::compiler::{BinaryInstr, Chunk, Instruction, UnaryInstr};
-pub use lib::PREDEFINED_CONSTANTS;
+use crate::compiler::{BinaryInstr, Chunk, CompiledSource, Instruction, UnaryInstr};
 pub use error::RuntimeError;
-pub use value::{
-    ArgsLen, Float, Function, Integer, NativeFunction, Table, UserFunction, FuncProtoRef, Value,
-};
 use frame::Frame;
+pub use lib::PREDEFINED_CONSTANTS;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
+pub use value::{
+    ArgsLen, Float, FuncProtoRef, Function, Integer, NativeFunction, Table, UserFunction, Value,
+};
 
 pub type RuntimeResult<T> = Result<T, RuntimeError>;
 
@@ -23,7 +23,7 @@ pub struct Vm {
     frames: Vec<Frame>,
     stack: Vec<Value>,
     globals: HashMap<Value, Value>,
-    current_chunk: Option<Chunk>,
+    compiled: Option<CompiledSource>,
 }
 
 impl Vm {
@@ -31,8 +31,10 @@ impl Vm {
         Self::default()
     }
 
-    pub fn run(&mut self, chunk: Chunk) -> RuntimeResult<Value> {
-        self.set_chunk(chunk);
+    pub fn run(&mut self, source: CompiledSource) -> RuntimeResult<Value> {
+        /* self.set_chunk(chunk);
+        self.set_constants(constants); */
+        self.set_compiled_source(source);
         self.init_call();
         self.main_loop()
     }
@@ -63,7 +65,7 @@ impl Vm {
                 Instruction::True => self.stack.push(Value::Bool(true)),
                 Instruction::False => self.stack.push(Value::Bool(false)),
                 Instruction::Constant { index } => {
-                    let value = self.current_chunk().constants()[index as usize].clone();
+                    let value = self.constant_table()[index as usize].clone();
                     self.stack.push(value)
                 }
                 Instruction::Pop => {
@@ -86,7 +88,7 @@ impl Vm {
                 Instruction::Bin(bin) => self.binary(bin)?,
                 Instruction::Unary(unary) => self.unary(unary)?,
                 Instruction::GetGlobal { index } => {
-                    let name = &self.current_chunk().constants()[index as usize];
+                    let name = &self.constant_table()[index as usize];
                     match self.globals.get(name) {
                         Some(value) => self.stack.push(value.clone()),
                         None => {
@@ -97,7 +99,7 @@ impl Vm {
                     }
                 }
                 Instruction::SetGlobal { index } => {
-                    let name = self.current_chunk().constants()[index as usize].clone();
+                    let name = self.constant_table()[index as usize].clone();
                     let value = self.stack.pop().unwrap();
                     self.globals.insert(name, value);
                 }
@@ -123,9 +125,9 @@ impl Vm {
                 Instruction::InitTable { len, has_keys } => self.init_table(len, has_keys)?,
                 Instruction::GetField => self.get_field()?,
                 Instruction::GetFieldImm { index } => self.get_field_imm(index)?,
-                Instruction::GetMethodImm { 
-                    index, 
-                    table_stack_index 
+                Instruction::GetMethodImm {
+                    index,
+                    table_stack_index,
                 } => self.get_method_imm(index, table_stack_index)?,
                 Instruction::SetField => self.set_field()?,
                 Instruction::SetFieldImm { index } => self.set_field_imm(index)?,
@@ -141,17 +143,21 @@ impl Vm {
                     let tuple = Value::Tuple(values.into_iter().rev().collect());
                     self.stack.push(tuple)
                 }
-                Instruction::FuncDef { proto_index, has_env } => {
-                    let proto = self.current_chunk().prototypes()[proto_index as usize].clone();
-                    let function = 
-                        Value::Function(if has_env {
-                            let env = self.pop_stack()?.into_table().expect("Expected a table as env");
-                            Function::new_user_with_env(proto, env)
-                        } else {
-                            Function::new_user(proto)
-                        });
-                    self.stack
-                        .push(function)
+                Instruction::FuncDef {
+                    proto_index,
+                    has_env,
+                } => {
+                    let proto = self.prototypes()[proto_index as usize].clone();
+                    let function = Value::Function(if has_env {
+                        let env = self
+                            .pop_stack()?
+                            .into_table()
+                            .expect("Expected a table as env");
+                        Function::new_user_with_env(proto, env)
+                    } else {
+                        Function::new_user(proto)
+                    });
+                    self.stack.push(function)
                 }
                 Instruction::Call { args_len } => {
                     let function = self.pop_stack()?;
@@ -164,7 +170,7 @@ impl Vm {
                     }
                 }
                 Instruction::Integer(value) => self.stack.push(value.into()),
-                Instruction::Import { name_index } => { self.import(name_index as usize)? },
+                Instruction::Import { name_index } => self.import(name_index as usize)?,
                 Instruction::ExitBlock { pop, return_value } => {
                     let return_value = if return_value {
                         let value = self.pop_stack()?;
@@ -181,7 +187,10 @@ impl Vm {
                 }
                 Instruction::Rec => {
                     let frame = self.frames.last().expect("Expected a call frame");
-                    let func = frame.function().expect("Expected call has a function").clone();
+                    let func = frame
+                        .function()
+                        .expect("Expected call has a function")
+                        .clone();
                     self.stack.push(func.into());
                 }
                 _ => return Err(RuntimeError::UnsupportedInstruction(instr)),
@@ -195,12 +204,28 @@ impl Vm {
     }
 
     fn import(&mut self, name_index: usize) -> RuntimeResult<()> {
-        let mod_name = self.current_chunk().constants()[name_index].as_str()?.to_string();
-        let chunk = self.current_chunk_mut().imports().remove(&mod_name).expect("Expected module");
+        let mod_name = self.constant_table()[name_index].as_str()?.to_string();
+        let chunk = self
+            .current_chunk_mut()
+            .imports()
+            .remove(&mod_name)
+            .expect("Expected module");
         let mut vm = Vm::new();
+        let source = CompiledSource {
+            chunk,
+            constant_table: Rc::clone(
+                &self
+                    .compiled
+                    .as_ref()
+                    .expect("Expected a compiled source")
+                    .constant_table,
+            ),
+        };
         // TODO: wrap error
-        vm.run(chunk)?;
-        self.globals.insert(mod_name.into(), Table::from_map(vm.globals).into());
+        // vm.run(chunk, Rc::clone(self.constant_table.as_ref().expect("Expected a constant table")))?;
+        vm.run(source)?;
+        self.globals
+            .insert(mod_name.into(), Table::from_map(vm.globals).into());
         Ok(())
     }
 
@@ -232,7 +257,7 @@ impl Vm {
 
     fn get_field_imm(&mut self, index: u8) -> RuntimeResult<()> {
         let table = self.pop_stack()?;
-        let key = &self.current_chunk().constants()[index as usize];
+        let key = &self.constant_table()[index as usize];
         let value = Self::get_table(key, &table)?;
         self.stack.push(value);
         Ok(())
@@ -242,17 +267,10 @@ impl Vm {
         // let field = self.get_field_imm(index)?;
         let table_stack_index = self.stack.len() - table_stack_index as usize - 1;
         let table = self.stack[table_stack_index].clone();
-        let key = &self.current_chunk().constants()[index as usize];
+        let key = &self.constant_table()[index as usize];
         let value = Self::get_table(&key, &table)?;
         self.stack.push(value.into_user_fn()?.into());
         Ok(())
-        /* match table {
-            Value::Table(rc) => {
-                self.stack.push(value.into_user_fn()?.into());
-                Ok(())
-            }
-            _ => Err(RuntimeError::TypeError),
-        } */
     }
 
     fn set_field(&mut self) -> RuntimeResult<()> {
@@ -272,7 +290,7 @@ impl Vm {
     fn set_field_imm(&mut self, index: u8) -> RuntimeResult<()> {
         let value = self.pop_stack()?;
         let table = self.pop_stack()?;
-        let key = &self.current_chunk().constants()[index as usize];
+        let key = &self.constant_table()[index as usize];
         match table {
             Value::Table(rc) => {
                 let mut table = rc.borrow_mut();
@@ -323,15 +341,14 @@ impl Vm {
     fn call_user(&mut self, function: UserFunction, pushed_args: u8) -> RuntimeResult<()> {
         if pushed_args == function.args_len() {
             let stack_top = self.stack.len() - function.args_len() as usize;
-            
+
             // Push env if exists
             if let Some(env) = function.env() {
                 self.stack.push(Rc::clone(env).into())
             }
 
             // let upvalues = function.extract_upvalues();
-            self.frames
-                .push(Frame::new(0, function, stack_top));
+            self.frames.push(Frame::new(0, function, stack_top));
             self.print_call_stack();
             self.print_stack();
             Ok(())
@@ -391,11 +408,11 @@ impl Vm {
                     BinaryInstr::Mul => Value::Number(a * b),
                     BinaryInstr::Div => {
                         if b == 0.0 {
-                            return Err(RuntimeError::DivideByZero)
+                            return Err(RuntimeError::DivideByZero);
                         } else {
                             Value::Number(a / b)
                         }
-                    },
+                    }
                     BinaryInstr::Rem => Value::Number(a % b),
 
                     BinaryInstr::Gt => Value::Bool(a > b),
@@ -410,11 +427,11 @@ impl Vm {
                     BinaryInstr::Mul => Value::Number(a * (b as f64)),
                     BinaryInstr::Div => {
                         if b == 0 {
-                            return Err(RuntimeError::DivideByZero)
+                            return Err(RuntimeError::DivideByZero);
                         } else {
                             Value::Number(a / (b as f64))
                         }
-                    },
+                    }
                     BinaryInstr::Rem => Value::Number(a % (b as f64)),
 
                     BinaryInstr::Gt => Value::Bool(a > (b as f64)),
@@ -433,7 +450,7 @@ impl Vm {
                                 0 => return Err(RuntimeError::DivideByZero),
                                 n if a % n == 0 => Value::Int(a / b),
                                 _ => Value::Number(a as f64 / b as f64),
-                            }, 
+                            },
                             BinaryInstr::Rem => Value::Int(a % b),
                             _ => unreachable!(),
                         }
@@ -454,11 +471,11 @@ impl Vm {
                         BinaryInstr::Mul => Value::Number((a as f64) * b),
                         BinaryInstr::Div => {
                             if b == 0.0 {
-                                return Err(RuntimeError::DivideByZero)
+                                return Err(RuntimeError::DivideByZero);
                             } else {
                                 Value::Number((a as f64) / b)
                             }
-                        }, 
+                        }
                         BinaryInstr::Rem => Value::Number((a as f64) % b),
                         BinaryInstr::Gt => Value::Bool((a as f64) > b),
                         BinaryInstr::Lt => Value::Bool((a as f64) < b),
@@ -522,19 +539,39 @@ impl Vm {
 
     #[inline]
     fn current_chunk(&self) -> &Chunk {
-        self.current_chunk.as_ref().expect("Expected a chunk")
+        &self
+            .compiled
+            .as_ref()
+            .expect("Expected a compiled source")
+            .chunk
     }
 
     #[inline]
     fn current_chunk_mut(&mut self) -> &mut Chunk {
-        self.current_chunk.as_mut().expect("Expected a chunk")
+        &mut self.compiled.as_mut().expect("Expected a chunk").chunk
+    }
+
+    fn constant_table(&self) -> &[Value] {
+        &self
+            .compiled
+            .as_ref()
+            .expect("Expected a constant table")
+            .constant_table
+            .constants
+    }
+
+    fn prototypes(&self) -> &[FuncProtoRef] {
+        &self
+            .compiled
+            .as_ref()
+            .expect("Expected a constant table")
+            .constant_table
+            .prototypes
     }
 
     fn instructions(&self) -> RuntimeResult<&[Instruction]> {
         Ok(match self.current_frame()?.proto() {
-            Some(proto) => proto
-                .instructions
-                .as_ref(),
+            Some(proto) => proto.instructions.as_ref(),
             None => self.current_chunk().instructions(),
         })
     }
@@ -566,18 +603,18 @@ impl Vm {
     fn print_stack(&self) {
         debug!("**********STACK LEN: {}**********", self.stack.len());
         for value in self.stack.iter() {
-            debug!("{}", value)
+            debug!("{}", &value);
         }
         debug!("**********STACK END**********");
     }
 
     #[allow(dead_code)]
     fn print_globals(&self) {
-        println!("{:#?}", self.globals);
+        debug!("{:#?}", self.globals);
     }
 
-    fn set_chunk(&mut self, chunk: Chunk) {
-        self.current_chunk = Some(chunk)
+    fn set_compiled_source(&mut self, source: CompiledSource) {
+        self.compiled = Some(source);
     }
 
     #[inline]
@@ -595,7 +632,9 @@ impl Default for Vm {
         Vm {
             frames: Vec::new(),
             stack: Vec::new(),
-            current_chunk: None,
+            compiled: None,
+            // current_chunk: None,
+            // constant_table: None,
             globals: PREDEFINED_CONSTANTS
                 .iter()
                 .map(|(s, f)| (Value::Embedded(s), f.clone()))

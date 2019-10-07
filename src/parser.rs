@@ -1,13 +1,13 @@
+mod analyzer;
 mod error;
 mod expr;
 mod lookahead;
 mod statement;
-mod analyzer;
 
 pub use super::scanner::{Token, TokenType};
 use crate::scanner::Scanner;
 pub use error::{ParserError, ParserErrorKind};
-pub use expr::{BinaryOp, Expr, BlockExpr, Literal, UnaryOp};
+pub use expr::{BinaryOp, BlockExpr, Expr, Literal, UnaryOp};
 use lookahead::LookAhead;
 pub use statement::Statement;
 use std::ops::{Deref, DerefMut};
@@ -106,16 +106,13 @@ where
         let value = self.expression()?;
         // Maybe optional
         self.match_token(TokenType::Semicolon)?;
-        Ok(Statement::Var {
-            name,
-            value,
-        })
+        Ok(Statement::Var { name, value })
     }
 
     fn if_stmt(&mut self) -> Result<Statement> {
         let condition = self.expression()?;
         self.match_token(TokenType::Then)?;
-    
+
         let then_block = self.block_expr_impl()?;
         if self.match_token(TokenType::Else).is_ok() {
             let else_block = if self.match_token(TokenType::If).is_ok() {
@@ -125,7 +122,7 @@ where
                 } else {
                     Some(Box::new(Expr::Block(BlockExpr {
                         stmts: vec![if_stmt],
-                        expr: Box::new(Expr::unit())
+                        expr: Box::new(Expr::unit()),
                     })))
                 }
             } else {
@@ -169,17 +166,19 @@ where
         })
     }
 
-    const ITERATOR_NAME: &'static str = "__iter__";
+    const ITERATOR_NAME: &'static str = "";
 
     // Desugar for to a while inside a block
     fn for_stmt(&mut self) -> Result<Statement> {
         let variable = self.match_token(TokenType::Identifier)?;
         if variable.text() == Self::ITERATOR_NAME {
-            return Err(self.make_error(ParserErrorKind::ReservedIdentifier(Self::ITERATOR_NAME.to_string()))?)
+            return Err(self.make_error(ParserErrorKind::ReservedIdentifier(
+                Self::ITERATOR_NAME.to_string(),
+            ))?);
         }
         self.match_token(TokenType::In)?;
         let iter = self.expression()?;
-        
+
         // body
         self.match_token(TokenType::Do)?;
 
@@ -188,8 +187,8 @@ where
             variable: Expr::Identifier(variable.text().to_string()),
             value: Expr::Call {
                 func: Box::new(Expr::Identifier(Self::ITERATOR_NAME.to_string())),
-                args: vec![]
-            }
+                args: vec![],
+            },
         });
         self.match_token(TokenType::End)?;
         Ok(Statement::Block(vec![
@@ -201,8 +200,8 @@ where
                 name: variable.text().to_string(),
                 value: Expr::Call {
                     func: Box::new(Expr::Identifier(Self::ITERATOR_NAME.to_string())),
-                    args: vec![]
-                }
+                    args: vec![],
+                },
             },
             Statement::While {
                 condition: Expr::Binary {
@@ -210,8 +209,8 @@ where
                     op: BinaryOp::BangEqual,
                     right: Box::new(Expr::nil()),
                 },
-                then_block: Box::new(Statement::Block(for_block))
-            }
+                then_block: Box::new(Statement::Block(for_block)),
+            },
         ]))
     }
 
@@ -249,19 +248,13 @@ where
         self.match_token(TokenType::As)?;
         let name = self.match_token(TokenType::Identifier)?.extract_text();
         let _ = self.match_token(TokenType::Semicolon)?;
-        Ok(Statement::Import {
-            path,
-            name
-        })
+        Ok(Statement::Import { path, name })
     }
 
     fn assign_stmt(&mut self, variable: Expr) -> Result<Statement> {
         let value = self.expression()?;
         self.match_token(TokenType::Semicolon)?;
-        Ok(Statement::Set {
-            variable,
-            value
-        })
+        Ok(Statement::Set { variable, value })
     }
 
     pub(self) fn expression(&mut self) -> Result<Expr> {
@@ -275,14 +268,15 @@ where
     fn comparasion(&mut self) -> Result<Expr> {
         let mut left = self.addition()?;
         while let Some(token) = [
-                TokenType::Less, 
-                TokenType::Greater, 
-                TokenType::LessEqual,
-                TokenType::GreaterEqual,
-                TokenType::EqualEqual,
-                TokenType::BangEqual
-            ].iter()
-            .find_map(|t| self.match_token(*t).ok())
+            TokenType::Less,
+            TokenType::Greater,
+            TokenType::LessEqual,
+            TokenType::GreaterEqual,
+            TokenType::EqualEqual,
+            TokenType::BangEqual,
+        ]
+        .iter()
+        .find_map(|t| self.match_token(*t).ok())
         {
             let binop: BinaryOp = token.get_type().into();
             let right = self.addition()?;
@@ -374,7 +368,7 @@ where
                     expr = Expr::SelfAccess {
                         table: Box::new(expr),
                         method,
-                        args
+                        args,
                     }
                 }
                 TokenType::LeftBracket => {
@@ -526,7 +520,11 @@ where
             self.match_token(TokenType::RightParen)?;
         }
         let body = self.block_expr(TokenType::End)?;
-        Ok(Expr::Function { args, body, env: None })
+        Ok(Expr::Function {
+            args,
+            body,
+            env: None,
+        })
     }
 
     fn block_expr(&mut self, terminating_token: TokenType) -> Result<BlockExpr> {
@@ -536,11 +534,7 @@ where
         Ok(expr)
     }
 
-    const BLOCK_ENDING: [TokenType; 3] = [
-        TokenType::End,
-        TokenType::Else,
-        TokenType::Eof,
-    ];
+    const BLOCK_ENDING: [TokenType; 3] = [TokenType::End, TokenType::Else, TokenType::Eof];
 
     fn block_expr_impl(&mut self) -> Result<BlockExpr> {
         let mut stmts = Vec::new();
@@ -563,11 +557,11 @@ where
                                 break {
                                     match last_stmt.map(|s| s.can_convert_expr()) {
                                         Some(true) => stmts.pop().unwrap().into_expr().unwrap(),
-                                        _ => Expr::Literal(Literal::Unit)
+                                        _ => Expr::Literal(Literal::Unit),
                                     }
-                                }
+                                };
                             } else {
-                                return Err(err)
+                                return Err(err);
                             }
                         }
                     }
@@ -730,10 +724,13 @@ mod tests {
         let source = "{3 = 6, \"foo\", \"xd\" = 5 + 3}";
         let mut parser = Parser::new(source).unwrap();
         let parsed = parser.expression();
-        assert_eq!(parsed, Err(ParserError {
-            kind: ParserErrorKind::InitError,
-            line: 1,
-        }));
+        assert_eq!(
+            parsed,
+            Err(ParserError {
+                kind: ParserErrorKind::InitError,
+                line: 1,
+            })
+        );
 
         let source = "{}";
         let mut parser = Parser::new(source).unwrap();
@@ -832,7 +829,7 @@ mod tests {
                     })
                 }],
                 expr: Box::new(Expr::unit())
-            })            
+            })
         );
         let source = "
         do
@@ -842,7 +839,7 @@ mod tests {
         let mut parser = Parser::new(source).unwrap();
         let parsed = parser.expression().unwrap();
         assert_eq!(
-            parsed, 
+            parsed,
             Expr::Block(BlockExpr {
                 stmts: vec![],
                 expr: Box::new(Expr::Binary {

@@ -1,4 +1,4 @@
-use super::value::{UserFunction, FuncProtoRef};
+use super::value::{FuncProtoRef, UserFunction};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Frame {

@@ -1,3 +1,5 @@
+use crate::vm::Value;
+
 unit_test! {
     arity,
     "

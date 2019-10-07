@@ -17,17 +17,8 @@ pub const PREDEFINED_CONSTANTS: [(&str, Value); 9] = [
     ("assert", ASSERT),
     ("new", NEW),
     ("for_each", FOR_EACH),
-    ("arity", ARITY)
+    ("arity", ARITY),
 ];
-
-pub const STD: [(&str, &str); 1] = [
-    ("array", array::ARRAY),
-];
-
-#[inline]
-pub fn constant_names() -> impl Iterator<Item = Value> {
-    PREDEFINED_CONSTANTS.iter().map(|&(n, _)| n.into())
-}
 
 macro_rules! define_native {
     ($name:ident, $function:expr, $len:expr) => {

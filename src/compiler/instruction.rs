@@ -94,7 +94,7 @@ pub enum Instruction {
         index: u16,
     },
     SetUpval {
-        index: u16
+        index: u16,
     },
     CloseUpval {
         index: u8,
@@ -104,12 +104,12 @@ pub enum Instruction {
     Import {
         name_index: u8,
     },
-    ExitBlock { 
+    ExitBlock {
         pop: u16,
         return_value: bool,
     },
     // rercursive call
-    Rec
+    Rec,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -136,7 +136,11 @@ pub enum UnaryInstr {
 impl BinaryInstr {
     pub fn is_arithmetic(self) -> bool {
         match self {
-            BinaryInstr::Add | BinaryInstr::Sub | BinaryInstr::Mul | BinaryInstr::Div | BinaryInstr::Rem => true,
+            BinaryInstr::Add
+            | BinaryInstr::Sub
+            | BinaryInstr::Mul
+            | BinaryInstr::Div
+            | BinaryInstr::Rem => true,
             _ => false,
         }
     }

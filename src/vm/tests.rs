@@ -1,7 +1,7 @@
-use super::{RuntimeError, Value, Vm};
-use crate::compiler::Compiler;
-use crate::parser::{Parser, ParserError, ParserErrorKind};
+use super::RuntimeError;
 use crate::error::FluxError;
+use crate::parser::{ParserError, ParserErrorKind};
+use crate::vm::Value;
 
 unit_test! {
     wrong_number_of_args,
@@ -120,7 +120,7 @@ unit_test! {
         \"getX\" = fn(self)
             return self.x;
         end,
-        \"setXLater\" = fn(self, x) 
+        \"setXLater\" = fn(self, x)
             return fn()
                 self.x = x;
                 self
@@ -366,43 +366,48 @@ unit_test! {
 
 #[test]
 fn divide_by_zero() {
-    use crate::eval;
+    use crate::util::eval;
 
     assert_eq!(eval("5 / 0", ""), Err(RuntimeError::DivideByZero.into()));
     assert_eq!(eval("5 / 0.0", ""), Err(RuntimeError::DivideByZero.into()));
     assert_eq!(eval("5.0 / 0", ""), Err(RuntimeError::DivideByZero.into()));
-    assert_eq!(eval("5.0 / 0.0", ""), Err(RuntimeError::DivideByZero.into()));
+    assert_eq!(
+        eval("5.0 / 0.0", ""),
+        Err(RuntimeError::DivideByZero.into())
+    );
 }
 
-#[test]
-fn import() {
-    use std::path::PathBuf;
-    use std::fs::{File, canonicalize};
-    use std::io::Read;
+macro_rules! test_file {
+    ($test_name: ident, $name:expr, $expected:expr) => {
+        #[test]
+        fn $test_name() {
+            use crate::util::run_file;
+            use std::fs::canonicalize;
+            use std::path::PathBuf;
 
-    let path = {
-        let mut pathbuf = canonicalize(PathBuf::from(file!())).unwrap();
-        pathbuf.pop();
-        pathbuf.push("tests");
-        pathbuf.push("import");
-        pathbuf.set_extension("flux");
-        pathbuf
+            let path = {
+                let mut pathbuf = canonicalize(PathBuf::from(file!())).unwrap();
+                pathbuf.pop();
+                pathbuf.push("tests");
+                pathbuf.push($name);
+                pathbuf.set_extension("flux");
+                pathbuf
+            };
+            let value = run_file(path.to_str().unwrap());
+
+            assert_eq!(value, $expected);
+        }
     };
-    println!("Path is: {}", path.to_str().unwrap());
-    let dir = path.parent().unwrap().to_owned();
-    let mut file = File::open(path).unwrap();
-    let mut source = String::new();
-    file.read_to_string(&mut source).unwrap(); 
+}
 
-    use crate::sourcefile::{SourceFile, MetaData};
+test_file! {
+    import,
+    "import",
+    Ok(Value::Int(25))
+}
 
-    let mut parser = Parser::new(&source).unwrap();
-    let ast = parser.parse().unwrap();
-    let chunk = Compiler::compile(SourceFile {
-        ast, 
-        metadata: MetaData { dir },
-    }).unwrap();
-    let mut vm = Vm::new();
-
-    assert_eq!(vm.run(chunk), Ok(Value::Int(25)));
+test_file! {
+    import_closure,
+    "import_closure",
+    Ok(Value::Int(10))
 }

@@ -7,7 +7,7 @@ use std::fmt::{Display, Formatter};
 #[derive(Clone, Debug, PartialEq)]
 pub struct ParserError {
     pub kind: ParserErrorKind,
-    pub line: usize
+    pub line: usize,
 }
 
 #[derive(Clone, Debug, PartialEq)]

@@ -46,7 +46,7 @@ pub enum Expr {
         // Else is mandatory when if is expression
         else_block: Box<Expr>,
     },
-    Rec,    // Function calls itself
+    Rec, // Function calls itself
 }
 
 // TODO: use these function instead of manually wrapping

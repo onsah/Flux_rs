@@ -54,13 +54,11 @@ impl Statement {
                 condition,
                 then_block,
                 else_block,
-            } => else_block.map(|else_block| 
-                Expr::If {
-                    condition: Box::new(condition),
-                    then_block,
-                    else_block,
-                }
-            ),
+            } => else_block.map(|else_block| Expr::If {
+                condition: Box::new(condition),
+                then_block,
+                else_block,
+            }),
             _ => None,
         }
     }

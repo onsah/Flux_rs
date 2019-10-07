@@ -1,3 +1,4 @@
+#[allow(unused_macros)]
 macro_rules! debug {
     ($($arg:tt)*) => {
         if cfg!(debug_assertions) {
@@ -11,43 +12,9 @@ macro_rules! unit_test {
     ($name:ident, $source:expr, $expected:expr) => {
         #[test]
         fn $name() {
-            use crate::sourcefile::{SourceFile, MetaData};
-            use crate::vm::value::Value;
-            use crate::parser::Parser;
-            use crate::compiler::Compiler;
-            use crate::vm::Vm;
-            use crate::error::FluxResult;
+            use crate::util::eval;
 
-            let source = $source;
-
-            let mut parser = Parser::new(source).unwrap();
-            let ast = parser.parse();
-            match ast {
-                Ok(ast) => {
-                    debug!("{:#?}", &ast);
-                    let chunk = Compiler::compile(SourceFile {
-                        ast, 
-                        metadata: MetaData::default(),
-                    });
-                    match chunk {
-                        Ok(chunk) => {
-                            let mut vm = Vm::new();
-                            let result: FluxResult<Value> = vm.run(chunk).map_err(|e| e.into());
-                            assert_eq!(result, $expected);
-                        },
-                        Err(err) => {
-                            let err: FluxResult<Value> = Err(err.into());
-                            assert_eq!(err, $expected)
-                        },
-                    }
-                },
-                Err(err) => {
-                    let err: FluxResult<Value> = Err(err.into());
-                    assert_eq!(err, $expected)
-                },
-            }
-            
-            // debug!("{:#?}", &chunk);
+            assert_eq!(eval($source, ""), $expected);
         }
     };
 }
